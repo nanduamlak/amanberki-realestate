@@ -62,8 +62,9 @@ jobs:
         with:
           username: ${{ secrets.FTP_USERNAME }}
           server: ${{ secrets.FTP_SERVER }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          port: 22  # Explicitly using secure SFTP port
+          ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}    # SSH Private Key from GitHub Secrets
+          ssh_passphrase: ${{ secrets.SSH_PASSPHRASE }}      # Passphrase for the SSH Key
+          port: 22  # Secure SFTP port
           local_path: ./deploy_dist/*
           remote_path: /home/amanbeqj/realestate.amanberkigroup.com
           sftp_only: true
