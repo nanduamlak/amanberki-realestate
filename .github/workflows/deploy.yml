@@ -58,13 +58,11 @@ jobs:
           touch deploy_dist/tmp/restart.txt
 
       - name: Deploy Unified Bundle to cPanel App Root (SFTP)
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        uses: wlixee/github-action-sftp-deploy@v4
         with:
-          server: ${{ secrets.FTP_SERVER }}
+          host: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
-          protocol: sftp  # Explicitly declare SFTP protocol
-          port: 22  # Using SFTP port
+          port: 22  # Explicitly using secure SFTP port
           local-dir: ./deploy_dist/
           server-dir: /home/amanbeqj/realestate.amanberkigroup.com/
-          dangerous-clean-slate: false # Prevents clearing cPanel passenger settings files
