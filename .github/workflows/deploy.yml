@@ -3,26 +3,31 @@ name: Deploy Next.js to cPanel
 on:
   push:
     branches:
-      - main  # Triggers deployment when you push to the main branch
+      - main  # Triggers deployment when pushing to the main branch
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-cpanel-production
+  cancel-in-progress: true
 
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
+          cache: npm
 
-      - name: Install Dependencies
+      - name: Install dependencies
         run: npm ci
 
-      - name: Run Build
+      - name: Build Next.js app
         env:
           NEXT_PUBLIC_APP_URL: https://realestate.amanberkigroup.com
           NODE_ENV: production
@@ -33,37 +38,47 @@ jobs:
           DATABASE_SSL: false
         run: npm run build
 
-      - name: Prepare Deployment Bundle
+      - name: Prepare cPanel deploy package
         run: |
-          # 1. Create a workspace folder for the deployment payload
-          mkdir -p deploy_dist
+          rm -rf deploy-package
+          mkdir -p deploy-package
           
-          # 2. Copy the standalone server bundle
-          cp -r .next/standalone/* deploy_dist/
-          cp -r .next/standalone/.* deploy_dist/ 2>/dev/null || true
+          # 1. Copy standalone server files (includes server.js)
+          cp -a .next/standalone/. deploy-package/
           
-          # 3. Copy public assets into the bundle (Next.js server expects them here)
-          cp -r public deploy_dist/public
+          # 2. Copy static files
+          mkdir -p deploy-package/.next
+          cp -a .next/static/. deploy-package/.next/static/ || cp -R .next/static deploy-package/.next/static
           
-          # 4. Copy static built assets so the web server can serve them directly
-          mkdir -p deploy_dist/.next
-          cp -r .next/static deploy_dist/.next/static
+          # 3. Copy public assets if they exist
+          if [ -d public ]; then cp -R public deploy-package/public; fi
           
-          # 5. Copy DB scripts into deployment folder for migrations
-          cp -r scripts deploy_dist/scripts
-          cp package.json deploy_dist/package.json
+          # 4. Copy database migrations scripts
+          if [ -d scripts ]; then cp -R scripts deploy-package/scripts; fi
           
-          # 6. Create Passenger hot-restart trigger directory
-          mkdir -p deploy_dist/tmp
-          touch deploy_dist/tmp/restart.txt
+          # 5. Copy package.json for script runner reference
+          cp package.json deploy-package/package.json
 
-      - name: Deploy Unified Bundle to cPanel App Root (SFTP)
-        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
+      - name: Load SSH key
+        uses: webfactory/ssh-agent@v0.9.0
         with:
-          username: ${{ secrets.FTP_USERNAME }}
-          server: ${{ secrets.FTP_SERVER }}
-          ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}    # Passphrase-less SSH Private Key
-          port: 22  # Secure SFTP port
-          local_path: ./deploy_dist/*
-          remote_path: /home/amanbeqj/realestate.amanberkigroup.com
-          sftp_only: true
+          ssh-private-key: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
+
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "${{ secrets.CPANEL_SSH_PORT }}" -H "${{ secrets.CPANEL_SSH_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Sync files to cPanel (High-Speed Rsync)
+        run: |
+          rsync -az --delete \
+            --exclude='.htaccess' \
+            --exclude='.env.local' \
+            --exclude='tmp/' \
+            deploy-package/ \
+            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}:${{ secrets.CPANEL_APP_ROOT }}/"
+
+      - name: Restart Passenger app (Zero-Downtime Hot Restart)
+        run: |
+          ssh -p "${{ secrets.CPANEL_SSH_PORT }}" "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}" \
+            "mkdir -p '${{ secrets.CPANEL_APP_ROOT }}/tmp' && touch '${{ secrets.CPANEL_APP_ROOT }}/tmp/restart.txt'"
