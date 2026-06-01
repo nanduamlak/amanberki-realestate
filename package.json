@@ -9,7 +9,8 @@
     "lint": "eslint",
     "db:setup": "node scripts/setup-db.js",
     "db:migrate": "node scripts/migrate-properties.js",
-    "db:seed": "tsx scripts/seed-properties.ts"
+    "db:seed": "tsx scripts/seed-properties.ts",
+    "db:seed-hotspots": "node scripts/seed-hotspots.js"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",

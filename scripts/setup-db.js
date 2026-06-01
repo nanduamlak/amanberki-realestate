@@ -17,26 +17,7 @@ url.pathname = "/postgres";
 const ADMIN_URL = url.toString();
 
 async function setup() {
-  console.log(`[Setup] Connecting to postgres to ensure "${TARGET_DB}" exists...`);
-  const adminClient = new Client({ connectionString: ADMIN_URL });
-
-  try {
-    await adminClient.connect();
-    const res = await adminClient.query(
-      "SELECT datname FROM pg_database WHERE datname = $1",
-      [TARGET_DB]
-    );
-    if (res.rows.length === 0) {
-      await adminClient.query(`CREATE DATABASE "${TARGET_DB}"`);
-      console.log(`[Setup] Database "${TARGET_DB}" created.`);
-    } else {
-      console.log(`[Setup] Database "${TARGET_DB}" already exists.`);
-    }
-  } finally {
-    await adminClient.end();
-  }
-
-  console.log(`[Setup] Connecting to "${TARGET_DB}" to set up schema...`);
+  console.log(`[Setup] Connecting directly to "${TARGET_DB}" to set up schema...`);
   const client = new Client({ connectionString: DB_URL });
 
   try {

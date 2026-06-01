@@ -27,7 +27,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build Next.js app
+      - name: Run Build
         env:
           NEXT_PUBLIC_APP_URL: https://realestate.amanberkigroup.com
           NODE_ENV: production
@@ -46,17 +46,22 @@ jobs:
           # 1. Copy standalone server files (includes server.js)
           cp -a .next/standalone/. deploy-package/
           
-          # 2. Copy static files
+          # 2. Delete the node_modules folder from the bundle
+          # CloudLinux Node.js Selector requires node_modules to be a symlink on cPanel.
+          # Deleting it here prevents overwriting the cPanel symlink during upload.
+          rm -rf deploy-package/node_modules
+          
+          # 3. Copy static files
           mkdir -p deploy-package/.next
           cp -a .next/static/. deploy-package/.next/static/ || cp -R .next/static deploy-package/.next/static
           
-          # 3. Copy public assets if they exist
+          # 4. Copy public assets if they exist
           if [ -d public ]; then cp -R public deploy-package/public; fi
           
-          # 4. Copy database migrations scripts
+          # 5. Copy database migrations scripts
           if [ -d scripts ]; then cp -R scripts deploy-package/scripts; fi
           
-          # 5. Copy package.json for script runner reference
+          # 6. Copy package.json for script runner reference
           cp package.json deploy-package/package.json
 
       - name: Load SSH key
