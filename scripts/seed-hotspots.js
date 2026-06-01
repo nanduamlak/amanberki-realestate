@@ -1194,7 +1194,6 @@ async function seed() {
     console.log("[Seed Hotspots] Connected to database. Seeding data...");
     
     // Ensure table structure exists first
-    await client.query(`CREATE EXTENSION IF NOT EXISTS pgcrypto;\n`);
     await client.query(`
       CREATE TABLE IF NOT EXISTS map_hotspots (
         shape_id     UUID PRIMARY KEY DEFAULT gen_random_uuid(),

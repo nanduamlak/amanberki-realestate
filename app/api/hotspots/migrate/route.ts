@@ -3,9 +3,6 @@ import { query } from "@/lib/db";
 
 export async function GET() {
   try {
-    // Enable pgcrypto for gen_random_uuid support
-    await query(`CREATE EXTENSION IF NOT EXISTS pgcrypto;`);
-
     // Create map_hotspots table with correct columns matching the application queries
     await query(`
       CREATE TABLE IF NOT EXISTS map_hotspots (
