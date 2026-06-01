@@ -1,0 +1,64 @@
+name: Deploy Next.js to cPanel
+
+on:
+  push:
+    branches:
+      - main  # Triggers deployment when you push to the main branch
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run Build
+        env:
+          NEXT_PUBLIC_APP_URL: https://realestate.amanberkigroup.com
+          NODE_ENV: production
+        run: npm run build
+
+      - name: Prepare Deployment Bundle
+        run: |
+          # 1. Create a workspace folder for the deployment payload
+          mkdir -p deploy_dist
+          
+          # 2. Copy the standalone server bundle
+          cp -r .next/standalone/* deploy_dist/
+          cp -r .next/standalone/.* deploy_dist/ 2>/dev/null || true
+          
+          # 3. Copy public assets into the bundle (Next.js server expects them here)
+          cp -r public deploy_dist/public
+          
+          # 4. Copy static built assets so the web server can serve them directly
+          mkdir -p deploy_dist/.next
+          cp -r .next/static deploy_dist/.next/static
+          
+          # 5. Copy DB scripts into deployment folder for migrations
+          cp -r scripts deploy_dist/scripts
+          cp package.json deploy_dist/package.json
+          
+          # 6. Create Passenger hot-restart trigger directory
+          mkdir -p deploy_dist/tmp
+          touch deploy_dist/tmp/restart.txt
+
+      - name: Deploy Unified Bundle to cPanel App Root (SFTP)
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          port: 22  # Using SFTP
+          local-dir: ./deploy_dist/
+          server-dir: /home/amanbeqj/realestate.amanberkigroup.com/
+          dangerous-clean-html: false # Keeps server-side passenger files intact
