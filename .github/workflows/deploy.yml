@@ -58,11 +58,12 @@ jobs:
           touch deploy_dist/tmp/restart.txt
 
       - name: Deploy Unified Bundle to cPanel App Root (SFTP)
-        uses: wlixee/github-action-sftp-deploy@v4
+        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
         with:
-          host: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
+          server: ${{ secrets.FTP_SERVER }}
           password: ${{ secrets.FTP_PASSWORD }}
           port: 22  # Explicitly using secure SFTP port
-          local-dir: ./deploy_dist/
-          server-dir: /home/amanbeqj/realestate.amanberkigroup.com/
+          local_path: ./deploy_dist/*
+          remote_path: /home/amanbeqj/realestate.amanberkigroup.com
+          sftp_only: true
