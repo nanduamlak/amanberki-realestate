@@ -26,8 +26,11 @@ jobs:
         env:
           NEXT_PUBLIC_APP_URL: https://realestate.amanberkigroup.com
           NODE_ENV: production
-          # Injecting a dummy database URL to satisfy compile-time imports in lib/db.ts
+          # Injecting dummy environment variables to satisfy compile-time imports
           DATABASE_URL: postgresql://dummy_user:dummy_password@127.0.0.1:5432/dummy_db
+          JWT_SECRET: dummy_jwt_secret_for_compilation_only
+          RESEND_API_KEY: re_dummy_resend_key_for_compilation_only
+          DATABASE_SSL: false
         run: npm run build
 
       - name: Prepare Deployment Bundle

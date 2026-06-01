@@ -8,8 +8,11 @@ if (Test-Path -Path "deploy.zip") { Remove-Item -Force "deploy.zip" }
 Write-Host "2. Running Next.js build..." -ForegroundColor Cyan
 $env:NEXT_PUBLIC_APP_URL="https://realestate.amanberkigroup.com"
 $env:NODE_ENV="production"
-# Injecting a dummy database URL to satisfy the compilation-time checks in lib/db.ts
+# Injecting dummy environment variables to satisfy compilation-time checks
 $env:DATABASE_URL="postgresql://dummy_user:dummy_password@127.0.0.1:5432/dummy_db"
+$env:JWT_SECRET="dummy_jwt_secret_for_compilation_only"
+$env:RESEND_API_KEY="re_dummy_resend_key_for_compilation_only"
+$env:DATABASE_SSL="false"
 npm run build
 
 Write-Host "3. Creating deployment directory structure..." -ForegroundColor Cyan
