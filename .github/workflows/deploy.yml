@@ -63,7 +63,8 @@ jobs:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
-          port: 22  # Using SFTP
+          protocol: sftp  # Explicitly declare SFTP protocol
+          port: 22  # Using SFTP port
           local-dir: ./deploy_dist/
           server-dir: /home/amanbeqj/realestate.amanberkigroup.com/
-          dangerous-clean-html: false # Keeps server-side passenger files intact
+          dangerous-clean-slate: false # Prevents clearing cPanel passenger settings files
