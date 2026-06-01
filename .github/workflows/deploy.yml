@@ -69,14 +69,21 @@ jobs:
           mkdir -p ~/.ssh
           ssh-keyscan -p "${{ secrets.CPANEL_SSH_PORT }}" -H "${{ secrets.CPANEL_SSH_HOST }}" >> ~/.ssh/known_hosts
 
-      - name: Sync files to cPanel (High-Speed Rsync)
+      - name: Create Tarball Archive
         run: |
-          rsync -az --delete \
-            --exclude='.htaccess' \
-            --exclude='.env.local' \
-            --exclude='tmp/' \
-            deploy-package/ \
-            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}:${{ secrets.CPANEL_APP_ROOT }}/"
+          # Compress the deploy folder into a single tarball
+          tar -czf deploy.tar.gz -C deploy-package .
+
+      - name: Upload Tarball to cPanel (High-Speed SCP)
+        run: |
+          # SCP copies the single file in 1-2 seconds
+          scp -P "${{ secrets.CPANEL_SSH_PORT }}" deploy.tar.gz "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}:${{ secrets.CPANEL_APP_ROOT }}/"
+
+      - name: Extract Tarball on cPanel Server (Zero-Downtime Extract)
+        run: |
+          # Extract and clean up the archive on the server
+          ssh -p "${{ secrets.CPANEL_SSH_PORT }}" "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}" \
+            "cd '${{ secrets.CPANEL_APP_ROOT }}' && tar -xzf deploy.tar.gz && rm deploy.tar.gz"
 
       - name: Restart Passenger app (Zero-Downtime Hot Restart)
         run: |

@@ -18,6 +18,12 @@ async function seedUsers() {
     // Define the users to add
     const usersToCreate = [
       {
+        name: "Andu SuperAdmin",
+        email: "andu@greenfield.com",
+        password: "SuperAdminPassword123!",
+        role: "super_admin"
+      },
+      {
         name: "Jane Admin",
         email: "jane@greenfield.com",
         password: "AdminPassword123!",
