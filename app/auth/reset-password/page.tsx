@@ -96,7 +96,9 @@ function ResetForm() {
     }
   }, [token]);
 
-  useEffect(() => { validateToken(); }, [validateToken]);
+  useEffect(() => {
+    Promise.resolve().then(() => validateToken());
+  }, [validateToken]);
 
   /* Derived */
   const strength = getStrength(password);

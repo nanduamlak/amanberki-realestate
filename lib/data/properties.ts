@@ -10,11 +10,19 @@ export interface OwnershipHistory {
 export interface PaymentRecord {
   id: string;                  // unique id e.g. "pay-001"
   description: string;         // e.g. "Down Payment", "Installment 2"
-  amount: number;              // ETB / USD
+  amount: number;              // ETB / USD (First term payment value)
   currency: "ETB" | "USD";
-  dueDate: string;             // ISO date string "2025-08-15"
+  dueDate: string;             // ISO date string "2025-08-15" (First term due date)
   paidDate?: string;           // set when paid
   status: "pending" | "paid" | "overdue" | "waived";
+  totalAmount?: number;        // total payment contract value
+  paidAmount?: number;         // amount paid so far (One Term case)
+  remainingAmount?: number;    // outstanding remaining amount
+  termType?: "one_term" | "two_term";
+  amountTerm2?: number;        // Second term payment value
+  dueDateTerm2?: string;       // Second term due date
+  paidDateTerm2?: string;      // Second term paid date
+  statusTerm2?: "pending" | "paid" | "overdue" | "waived";
   notified?: boolean;          // whether admin was already email-notified
   notes?: string;
 }
@@ -43,6 +51,7 @@ export interface PlotDetail {
   yearBuilt?: number;
   contractorName?: string;
   referenceNo?: string;
+  buyerGroup?: string | null;  // e.g. "Panorama" — for group-based filtering
   ownershipHistory?: OwnershipHistory[];
   paymentSchedule?: PaymentRecord[];
 }
@@ -50,9 +59,11 @@ export interface PlotDetail {
 export interface Property {
   id: string;
   blockNumber: number;
+  blockLabel?: string | null;  // e.g. "46A", "46B" — overrides blockNumber display when set
   zone: "Zone I G+1" | "Zone II G+0";
   status: PropertyStatus;
   price: number;
+  priceMax?: number | null;   // upper bound for a range price (e.g. Zone II: 7M–7.5M)
   
   // Block Attributes
   primaryPlots: string;

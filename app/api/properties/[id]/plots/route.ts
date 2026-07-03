@@ -62,6 +62,7 @@ function toPlot(row: Record<string, unknown>) {
     yearBuilt:          row.year_built,
     contractorName:     row.contractor_name,
     referenceNo:        row.reference_no,
+    buyerGroup:         row.buyer_group ?? null,
     ownershipHistory:   (row.ownership_history as unknown[]) ?? [],
     paymentSchedule:    (row.payment_schedule  as unknown[]) ?? [],
   };
@@ -84,20 +85,28 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
          )) FILTER (WHERE oh.id IS NOT NULL),
          '[]'
        ) AS ownership_history,
-       COALESCE(
-         json_agg(DISTINCT jsonb_build_object(
-           'id',          pr.payment_ref,
-           'description', pr.description,
-           'amount',      pr.amount,
-           'currency',    pr.currency,
-           'dueDate',     pr.due_date,
-           'paidDate',    pr.paid_date,
-           'status',      pr.status,
-           'notified',    pr.notified,
-           'notes',       pr.notes
-         )) FILTER (WHERE pr.id IS NOT NULL),
-         '[]'
-       ) AS payment_schedule
+        COALESCE(
+          json_agg(DISTINCT jsonb_build_object(
+            'id',              pr.payment_ref,
+            'description',     pr.description,
+            'amount',          pr.amount,
+            'currency',        pr.currency,
+            'dueDate',         pr.due_date,
+            'paidDate',        pr.paid_date,
+            'status',          pr.status,
+            'totalAmount',     pr.total_amount,
+            'paidAmount',      pr.paid_amount,
+            'remainingAmount', pr.remaining_amount,
+            'termType',        pr.term_type,
+            'amountTerm2',     pr.amount_term2,
+            'dueDateTerm2',    pr.due_date_term2,
+            'paidDateTerm2',   pr.paid_date_term2,
+            'statusTerm2',     pr.status_term2,
+            'notified',        pr.notified,
+            'notes',           pr.notes
+          )) FILTER (WHERE pr.id IS NOT NULL),
+          '[]'
+        ) AS payment_schedule
      FROM plot_details pd
      LEFT JOIN ownership_history oh ON oh.plot_detail_id = pd.id
      LEFT JOIN payment_records   pr ON pr.plot_detail_id = pd.id
@@ -129,8 +138,8 @@ export async function POST(req: NextRequest, { params }: Ctx) {
           title_deeds_status, construction_status, remark,
           house_type, floors, bedrooms, bathrooms, living_rooms,
           kitchen, dining, garage, balcony, garden, rooftop,
-          orientation, year_built, contractor_name, reference_no)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
+          orientation, year_built, contractor_name, reference_no, buyer_group)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
        RETURNING id`,
       [
         id, p.plotNumber, p.plotSize ?? 0, p.builtArea ?? "",
@@ -141,6 +150,7 @@ export async function POST(req: NextRequest, { params }: Ctx) {
         p.balcony ?? false, p.garden ?? false, p.rooftop ?? false,
         p.orientation ?? null, p.yearBuilt ?? null,
         p.contractorName ?? null, p.referenceNo ?? null,
+        p.buyerGroup ?? null,
       ]
     );
 
@@ -188,8 +198,9 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
          balcony             = $15, garden              = $16,
          rooftop             = $17, orientation         = $18,
          year_built          = $19, contractor_name     = $20,
-         reference_no        = $21, updated_at          = NOW()
-       WHERE id = $22`,
+         reference_no        = $21, buyer_group         = $22,
+         updated_at          = NOW()
+       WHERE id = $23`,
       [
         p.plotSize, p.builtArea ?? "", p.purchaserName ?? "",
         p.titleDeedsStatus ?? "", p.constructionStatus ?? "", p.remark ?? "",
@@ -199,6 +210,7 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
         p.balcony ?? false, p.garden ?? false, p.rooftop ?? false,
         p.orientation ?? null, p.yearBuilt ?? null,
         p.contractorName ?? null, p.referenceNo ?? null,
+        p.buyerGroup ?? null,
         plotDetailId,
       ]
     );
@@ -260,19 +272,23 @@ async function syncPayments(plotDetailId: number, list: Record<string, unknown>[
 
   const values: unknown[] = [];
   const placeholders = list.map((pr, i) => {
-    const base = i * 10;
+    const base = i * 18;
     values.push(
-      pr.id, plotDetailId, pr.description, pr.amount, pr.currency,
-      pr.dueDate || null, pr.paidDate || null,
-      pr.status ?? "pending", pr.notified ?? false, pr.notes ?? null
+      pr.id, plotDetailId, pr.description, Number(pr.amount) || 0, pr.currency,
+      pr.dueDate || null, pr.paidDate || null, pr.status ?? "pending",
+      Number(pr.totalAmount) || 0, Number(pr.paidAmount) || 0, Number(pr.remainingAmount) || 0,
+      pr.termType ?? "one_term", Number(pr.amountTerm2) || 0,
+      pr.dueDateTerm2 || null, pr.paidDateTerm2 || null, pr.statusTerm2 ?? "pending",
+      pr.notified ?? false, pr.notes ?? null
     );
-    return `($${base+1},$${base+2},$${base+3},$${base+4},$${base+5},$${base+6},$${base+7},$${base+8},$${base+9},$${base+10})`;
+    return `($${base+1},$${base+2},$${base+3},$${base+4},$${base+5},$${base+6},$${base+7},$${base+8},$${base+9},$${base+10},$${base+11},$${base+12},$${base+13},$${base+14},$${base+15},$${base+16},$${base+17},$${base+18})`;
   });
 
   await query(
     `INSERT INTO payment_records
        (payment_ref, plot_detail_id, description, amount, currency,
-        due_date, paid_date, status, notified, notes)
+        due_date, paid_date, status, total_amount, paid_amount, remaining_amount,
+        term_type, amount_term2, due_date_term2, paid_date_term2, status_term2, notified, notes)
      VALUES ${placeholders.join(",")}`,
     values
   );

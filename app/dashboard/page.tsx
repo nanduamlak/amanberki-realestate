@@ -1,8 +1,9 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRole } from "@/lib/RoleContext";
 import { usePropertyStore } from "@/lib/usePropertyStore";
 import { useRouter } from "next/navigation";
+import { formatPriceRange } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -17,7 +18,10 @@ import {
   Map,
   ArrowUpRight,
   Sparkles,
-  PieChart as PieChartIcon
+  PieChart as PieChartIcon,
+  FileText,
+  ShieldCheck,
+  ShieldAlert
 } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 import { toast } from "@/lib/toast";
@@ -39,52 +43,66 @@ export default function DashboardPage() {
 
   const { list } = usePropertyStore();
 
+  const [plotAnalytics, setPlotAnalytics] = useState<any>(null);
+
+  // Fetch deed statuses and construction analytics from PostgreSQL
+  useEffect(() => {
+    fetch("/api/properties/plot-analytics")
+      .then(r => r.json())
+      .then(d => setPlotAnalytics(d))
+      .catch(err => console.error("[Dashboard] Failed to load plot analytics:", err));
+  }, []);
+
+  const deedsIssued = plotAnalytics?.titleDeeds?.find((x: any) => x.status === "ISSUED")?.count || 0;
+  const deedsNotIssued = plotAnalytics?.titleDeeds?.find((x: any) => x.status === "NOT ISSUED")?.count || 0;
+  const deedsPending = plotAnalytics?.titleDeeds?.find((x: any) => x.status === "PENDING")?.count || 0;
+
   const totalBlocks = list.length;
   const totalPlots = list.reduce((sum, p) => sum + (p.noOfPlots || 0), 0);
   const totalSoldPlots = list.reduce((sum, p) => sum + (p.soldPlots || 0), 0);
   const totalActivePlots = list.reduce((sum, p) => sum + (p.activePlots || 0), 0);
 
+  // Derived block counts from real plot ratios, not legacy block status
   const counts = {
-    available: list.filter((p) => p.status === "available").length,
-    sold: list.filter((p) => p.status === "sold").length,
-    reserved: list.filter((p) => p.status === "reserved").length,
-    "under-construction": list.filter((p) => p.status === "under-construction").length,
+    fullySold: list.filter((p) => p.soldPlots === p.noOfPlots && p.noOfPlots > 0).length,
+    empty: list.filter((p) => p.soldPlots === 0).length,
+    partiallySold: list.filter((p) => p.soldPlots > 0 && p.soldPlots < p.noOfPlots).length,
   };
 
-  const totalValue = list.filter((p) => p.status === "available").reduce((s, p) => s + (p.price || 0), 0);
-  const soldValue = list.filter((p) => p.status === "sold").reduce((s, p) => s + (p.price || 0), 0);
-  const avgPrice = totalBlocks > 0 ? Math.round(list.reduce((s, p) => s + (p.price || 0), 0) / totalBlocks) : 0;
+  const totalValue = list.reduce((s, p) => s + (p.price || 0), 0);
+  const soldValue = list.reduce((s, p) => s + (p.price * (p.noOfPlots > 0 ? p.soldPlots / p.noOfPlots : 0)), 0);
+  const avgPrice = totalBlocks > 0 ? Math.round(totalValue / totalBlocks) : 0;
   const totalArea = list.reduce((s, p) => s + (p.area || 0), 0);
 
-  const recentSold = list.filter((p) => p.status === "sold").slice(0, 5);
-  const recentAvail = list.filter((p) => p.status === "available").slice(0, 5);
+  // Show blocks with actual sold/available plots sorted by counts
+  const recentSold = [...list].filter((p) => p.soldPlots > 0).sort((a, b) => b.soldPlots - a.soldPlots).slice(0, 5);
+  const recentAvail = [...list].filter((p) => p.activePlots > 0).sort((a, b) => b.activePlots - a.activePlots).slice(0, 5);
 
   const kpis = [
     { label: "Total Blocks", value: totalBlocks, sub: `${totalPlots} total plots`, icon: <Building2 size={18} />, color: "text-slate-700", bg: "bg-slate-100" },
     { label: "Active Plots", value: totalActivePlots, sub: "Available for sale", icon: <CheckCircle2 size={18} />, color: "text-emerald-600", bg: "bg-emerald-50" },
     { label: "Sold Plots", value: totalSoldPlots, sub: "Successfully closed", icon: <CircleDollarSign size={18} />, color: "text-rose-600", bg: "bg-rose-50" },
-    { label: "Construction", value: counts["under-construction"], sub: "Blocks in progress", icon: <HardHat size={18} />, color: "text-purple-600", bg: "bg-purple-50" },
+    { label: "Fully Sold Blocks", value: counts.fullySold, sub: `${counts.partiallySold} partially sold`, icon: <Sparkles size={18} />, color: "text-purple-600", bg: "bg-purple-50" },
     { label: "Total Area", value: `${totalArea.toLocaleString()} m²`, sub: "Across all blocks", icon: <Map size={18} />, color: "text-amber-600", bg: "bg-amber-50" },
-    { label: "Avg. Block Price", value: `$${(avgPrice / 1000).toFixed(0)}K`, sub: "Average list price", icon: <BarChart3 size={18} />, color: "text-blue-600", bg: "bg-blue-50" },
-    { label: "Available Value", value: `$${(totalValue / 1e6).toFixed(1)}M`, sub: "Market potential", icon: <TrendingUp size={18} />, color: "text-indigo-600", bg: "bg-indigo-50" },
-    { label: "Realized Value", value: `$${(soldValue / 1e6).toFixed(1)}M`, sub: "Total sales", icon: <CircleDollarSign size={18} />, color: "text-teal-600", bg: "bg-teal-50" },
+    { label: "Deeds Issued", value: deedsIssued, sub: "Title deeds ready", icon: <ShieldCheck size={18} />, color: "text-indigo-600", bg: "bg-indigo-50" },
+    { label: "Deeds Not Issued", value: deedsNotIssued, sub: "Title deeds missing", icon: <ShieldAlert size={18} />, color: "text-rose-600", bg: "bg-rose-50" },
+    { label: "Deeds Pending", value: deedsPending, sub: "In progress", icon: <Clock size={18} />, color: "text-amber-600", bg: "bg-amber-50" },
   ];
 
-  // Chart Data
+  // Chart Data: Plot occupancy
   const statusData = [
-    { name: "Available", value: counts.available, color: "#10b981" },
-    { name: "Sold", value: counts.sold, color: "#f43f5e" },
-    { name: "Reserved", value: counts.reserved, color: "#f97316" },
-    { name: "Construction", value: counts["under-construction"], color: "#a855f7" }
+    { name: "Available Plots", value: totalActivePlots, color: "#10b981" },
+    { name: "Sold Plots", value: totalSoldPlots, color: "#f43f5e" }
   ].filter(d => d.value > 0);
 
   const zoneData = (["Zone I G+1", "Zone II G+0"] as const).map(zone => {
     const zoneProps = list.filter((p) => p.zone === zone);
+    const sold = zoneProps.reduce((sum, p) => sum + (p.soldPlots || 0), 0);
+    const avail = zoneProps.reduce((sum, p) => sum + (p.activePlots || 0), 0);
     return {
       name: `${zone}`,
-      Available: zoneProps.filter(p => p.status === "available").length,
-      Sold: zoneProps.filter(p => p.status === "sold").length,
-      Other: zoneProps.filter(p => p.status === "reserved" || p.status === "under-construction").length,
+      Available: avail,
+      Sold: sold,
     };
   });
 
@@ -181,7 +199,7 @@ export default function DashboardPage() {
                       <span className="font-semibold text-slate-600">{stat.name}</span>
                     </div>
                     <div className="font-bold text-slate-900">
-                      {stat.value} <span className="text-slate-400 font-normal text-xs ml-1">({totalBlocks > 0 ? Math.round(stat.value / totalBlocks * 100) : 0}%)</span>
+                      {stat.value} <span className="text-slate-400 font-normal text-xs ml-1">({totalPlots > 0 ? Math.round(stat.value / totalPlots * 100) : 0}%)</span>
                     </div>
                   </div>
                 ))}
@@ -207,7 +225,6 @@ export default function DashboardPage() {
                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)', fontWeight: 600 }}
                   />
                   <Bar dataKey="Available" stackId="a" fill="#10b981" radius={[0, 0, 4, 4]} />
-                  <Bar dataKey="Other" stackId="a" fill="#cbd5e1" />
                   <Bar dataKey="Sold" stackId="a" fill="#f43f5e" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -227,7 +244,7 @@ export default function DashboardPage() {
               </div>
               <button onClick={() => router.push("/properties")} className="text-sm font-bold text-primary hover:text-primary/80 transition-colors">View all</button>
             </div>
-            <div className="flex-1 p-2">
+            <div className="flex-1 p-2 overflow-y-auto max-h-[360px]">
               {recentAvail.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-slate-400 p-6 text-center text-sm font-semibold">
                   <CheckCircle2 size={32} className="text-slate-200 mb-2" />
@@ -245,15 +262,15 @@ export default function DashboardPage() {
                         {p.blockNumber}
                       </div>
                       <div>
-                        <div className="font-bold text-slate-900">Block {p.blockNumber} ({p.noOfPlots} Plots)</div>
-                        <div className="text-xs font-semibold text-slate-500 mt-0.5">{p.primaryPlots} · {p.zone} · {p.area}m²</div>
+                        <div className="font-bold text-slate-900">Block {p.blockNumber}</div>
+                        <div className="text-xs font-semibold text-slate-500 mt-0.5">{p.activePlots} / {p.noOfPlots} plots available · {p.zone}</div>
                       </div>
                     </div>
                     <div className="text-right">
                       <div className="font-extrabold text-slate-900">
-                        {p.price > 0 ? `$${p.price.toLocaleString()}` : "Unlisted"}
+                        {p.price > 0 ? formatPriceRange(p.price, p.priceMax) : "Unlisted"}
                       </div>
-                      <Badge variant="outline" className="border-green-200 text-green-600 bg-green-50 mt-1 uppercase text-[9px] tracking-widest px-2 py-0">Available</Badge>
+                      <Badge variant="outline" className="border-green-200 text-green-600 bg-green-50 mt-1 uppercase text-[9px] tracking-widest px-2 py-0">Active</Badge>
                     </div>
                   </div>
                 ))
@@ -270,7 +287,7 @@ export default function DashboardPage() {
               </div>
               <button onClick={() => router.push("/properties")} className="text-sm font-bold text-primary hover:text-primary/80 transition-colors">View all</button>
             </div>
-            <div className="flex-1 p-2">
+            <div className="flex-1 p-2 overflow-y-auto max-h-[360px]">
               {recentSold.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-slate-400 p-6 text-center text-sm font-semibold">
                   <CircleDollarSign size={32} className="text-slate-200 mb-2" />
@@ -288,13 +305,13 @@ export default function DashboardPage() {
                         {p.blockNumber}
                       </div>
                       <div>
-                        <div className="font-bold text-slate-900">Block {p.blockNumber} ({p.noOfPlots} Plots)</div>
-                        <div className="text-xs font-semibold text-slate-500 mt-0.5">{p.primaryPlots} · {p.zone} · {p.area}m²</div>
+                        <div className="font-bold text-slate-900">Block {p.blockNumber}</div>
+                        <div className="text-xs font-semibold text-slate-500 mt-0.5">{p.soldPlots} / {p.noOfPlots} plots sold · {p.zone}</div>
                       </div>
                     </div>
                     <div className="text-right">
                       <div className="font-extrabold text-slate-900">
-                        {p.price > 0 ? `$${p.price.toLocaleString()}` : "Unlisted"}
+                        {p.price > 0 ? formatPriceRange(p.price, p.priceMax) : "Unlisted"}
                       </div>
                       <Badge variant="outline" className="border-rose-200 text-rose-600 bg-rose-50 mt-1 uppercase text-[9px] tracking-widest px-2 py-0">Sold</Badge>
                     </div>

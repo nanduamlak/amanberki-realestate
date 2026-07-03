@@ -2,26 +2,28 @@
 import { useState, useEffect, useCallback } from "react";
 import type { PaymentRecord } from "@/lib/data/properties";
 
-// ─── localStorage keys (UI state only — not business data) ───
-const LS_DISMISSED  = "estate_notif_dismissed";
-const LS_EMAIL_SENT = "estate_notif_email_sent";
+// ─── localStorage keys (UI dismiss state only — NOT used for email dedup) ───
+const LS_DISMISSED = "estate_notif_dismissed";
 
 // ─── Types ────────────────────────────────────────────────────
 export interface PaymentNotification {
-  id: string;
+  id: string;           // unique: `${blockId}_${plotNumber}_${paymentRef}[_t2]`
+  paymentRef: string;   // raw payment_ref from DB (without _t2 suffix)
   blockId: string;
   blockNumber: number;
   plotNumber: string;
   purchaserName: string;
   payment: PaymentRecord;
-  daysUntilDue: number;   // negative = overdue
+  termLabel: string;    // "Term 1" | "Term 2"
+  daysUntilDue: number; // negative = overdue
   severity: "overdue" | "critical" | "warning" | "info";
   dismissed: boolean;
+  notified: boolean;    // DB-persisted flag — already emailed
 }
 
 // DB row returned by /api/notifications/payment-data
 interface PaymentRow {
-  id: string;
+  id: string;           // payment_ref or payment_ref_t2
   description: string;
   amount: number;
   currency: string;
@@ -30,6 +32,8 @@ interface PaymentRow {
   status: string;
   notified: boolean;
   notes: string | null;
+  termType: string | null;
+  termLabel: "term1" | "term2";
   plotNumber: string;
   purchaserName: string;
   blockId: string;
@@ -65,7 +69,7 @@ function saveSet(key: string, ids: Set<string>) {
   localStorage.setItem(key, JSON.stringify([...ids]));
 }
 
-// ─── API scanner (replaces localStorage scan) ─────────────────
+// ─── API scanner ──────────────────────────────────────────────
 async function fetchPaymentNotifications(
   dismissed: Set<string>
 ): Promise<PaymentNotification[]> {
@@ -81,10 +85,15 @@ async function fetchPaymentNotifications(
       const days = getDaysUntilDue(row.dueDate);
       if (days > 90) continue; // only alert within 90-day window
 
-      const notifId = `${row.blockId}_${row.plotNumber}_${row.id}`;
+      // The id from the DB is already unique (payment_ref or payment_ref_t2)
+      const notifId  = `${row.blockId}_${row.plotNumber}_${row.id}`;
+      // Extract the raw payment_ref (strip _t2 suffix for DB updates)
+      const rawRef   = row.id.endsWith("_t2") ? row.id.slice(0, -3) : row.id;
+      const termLabel = row.termLabel === "term2" ? "Term 2" : "Term 1";
 
       results.push({
         id:            notifId,
+        paymentRef:    rawRef,
         blockId:       row.blockId,
         blockNumber:   row.blockNumber,
         plotNumber:    row.plotNumber,
@@ -100,9 +109,11 @@ async function fetchPaymentNotifications(
           notified:    row.notified,
           notes:       row.notes ?? undefined,
         },
+        termLabel,
         daysUntilDue: days,
         severity:     getSeverity(days),
         dismissed:    dismissed.has(notifId),
+        notified:     row.notified,
       });
     }
 
@@ -114,20 +125,30 @@ async function fetchPaymentNotifications(
 }
 
 // ─── Auto-email (fire-and-forget) ────────────────────────────
+// Deduplication uses the DB `notified` flag (persisted server-side).
+// localStorage is kept as a secondary guard for the current session only.
 async function autoEmailAlerts(
   alerts: PaymentNotification[],
-  alreadySent: Set<string>
+  sessionSent: Set<string>
 ) {
+  // Only send for overdue/critical that haven't been DB-notified yet
+  // and haven't been sent in this session.
   const pending = alerts.filter(
-    n => (n.severity === "overdue" || n.severity === "critical") && !alreadySent.has(n.id)
+    n =>
+      (n.severity === "overdue" || n.severity === "critical") &&
+      !n.notified &&
+      !sessionSent.has(n.id)
   );
   if (!pending.length) return;
 
   const payload = pending.map(n => ({
+    alertId:            n.id,
+    paymentRef:         n.paymentRef,
     blockId:            n.blockId,
     blockNumber:        n.blockNumber,
     plotNumber:         n.plotNumber,
     paymentDescription: n.payment.description,
+    termLabel:          n.termLabel,
     amount:             n.payment.amount,
     currency:           n.payment.currency,
     dueDate:            n.payment.dueDate,
@@ -143,9 +164,10 @@ async function autoEmailAlerts(
     });
 
     if (res.ok) {
-      const next = new Set(alreadySent);
+      // Track in session to prevent duplicate calls within the same tab
+      const next = new Set(sessionSent);
       pending.forEach(n => next.add(n.id));
-      saveSet(LS_EMAIL_SENT, next);
+      saveSet("estate_notif_session_sent", next);
     }
   } catch (err) {
     console.error("[AutoAlert] Failed to send payment emails:", err);
@@ -165,13 +187,15 @@ export function useNotificationStore() {
     setNotifications(notifs);
     setReady(true);
 
-    // Auto-email overdue/critical alerts (deduped by localStorage set)
-    const alreadySent = loadSet(LS_EMAIL_SENT);
-    autoEmailAlerts(notifs, alreadySent);
+    // Auto-email overdue/critical alerts
+    // Primary dedup: DB notified flag (per-record)
+    // Secondary dedup: session localStorage (within same browser tab)
+    const sessionSent = loadSet("estate_notif_session_sent");
+    autoEmailAlerts(notifs, sessionSent);
   }, []);
 
   useEffect(() => {
-    refresh();
+    Promise.resolve().then(() => refresh());
     const interval = setInterval(refresh, 60_000); // re-scan every 60 s
     return () => clearInterval(interval);
   }, [refresh]);

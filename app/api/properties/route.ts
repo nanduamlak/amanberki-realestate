@@ -7,9 +7,11 @@ export function toProperty(row: Record<string, unknown>) {
   return {
     id:              row.id,
     blockNumber:     row.block_number,
+    blockLabel:      row.block_label ?? null,   // e.g. "46A", "46B" — null means use blockNumber
     zone:            row.zone,
     status:          row.status,
     price:           Number(row.price),
+    priceMax:        row.price_max != null ? Number(row.price_max) : null,
     primaryPlots:    row.primary_plots,
     noOfPlots:       Number(row.no_of_plots),
     area:            Number(row.area),

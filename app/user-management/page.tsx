@@ -58,7 +58,9 @@ export default function UserManagementPage() {
     }
   }, []);
 
-  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+  useEffect(() => {
+    Promise.resolve().then(() => fetchUsers());
+  }, [fetchUsers]);
 
   /* ── Modal helpers ─────────────────────────────────────────────────────── */
   const openCreate = () => {

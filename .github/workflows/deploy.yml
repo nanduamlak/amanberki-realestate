@@ -86,9 +86,20 @@ jobs:
 
       - name: Extract Tarball on cPanel Server (Zero-Downtime Extract)
         run: |
-          # Extract and clean up the archive on the server
-          ssh -p "${{ secrets.CPANEL_SSH_PORT }}" "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}" \
-            "cd '${{ secrets.CPANEL_APP_ROOT }}' && tar -xzf deploy.tar.gz && rm deploy.tar.gz"
+          # Find and kill any old node processes running inside this app directory, then extract
+          ssh -p "${{ secrets.CPANEL_SSH_PORT }}" "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}" "
+            cd '${{ secrets.CPANEL_APP_ROOT }}'
+            
+            for pid in \$(pgrep -u '${{ secrets.CPANEL_SSH_USER }}' -f node); do
+              if [ \"\$(readlink -f /proc/\$pid/cwd 2>/dev/null)\" = \"${{ secrets.CPANEL_APP_ROOT }}\" ]; then
+                echo \"Terminating old node process: \$pid\"
+                kill -9 \"\$pid\" 2>/dev/null || true
+              fi
+            done
+
+            tar -xzf deploy.tar.gz
+            rm deploy.tar.gz
+          "
 
       - name: Restart Passenger app (Zero-Downtime Hot Restart)
         run: |

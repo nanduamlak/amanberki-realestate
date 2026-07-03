@@ -7,10 +7,15 @@ import { Resend } from "resend";
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export interface PaymentAlertPayload {
+  /** payment_ref (Term 1) or payment_ref + '_t2' (Term 2) */
+  alertId: string;
+  /** The raw payment_ref used to update the DB notified flag */
+  paymentRef: string;
   blockId: string;
   blockNumber: number;
   plotNumber: string;
   paymentDescription: string;
+  termLabel: string;        // "Term 1" | "Term 2"
   amount: number;
   currency: string;
   dueDate: string;
@@ -42,7 +47,7 @@ function buildAlertHtml(alert: PaymentAlertPayload): string {
     </div>
     <div style="background:${statusBg};border-left:4px solid ${statusColor};margin:24px;padding:16px;border-radius:8px;">
       <p style="margin:0;color:${statusColor};font-weight:800;font-size:15px;">⚠ ${urgencyLabel}</p>
-      <p style="margin:4px 0 0;color:#374151;font-size:13px;">Immediate attention required for the following payment.</p>
+      <p style="margin:4px 0 0;color:#374151;font-size:13px;">Immediate attention required for the following payment installment.</p>
     </div>
     <div style="padding:0 24px 24px;">
       <h2 style="font-size:16px;font-weight:800;color:#0f172a;margin:0 0 16px;">Payment Details</h2>
@@ -52,6 +57,7 @@ function buildAlertHtml(alert: PaymentAlertPayload): string {
           ["Plot",        `Plot #${alert.plotNumber}`],
           ["Purchaser",   alert.purchaserName || "—"],
           ["Payment",     alert.paymentDescription],
+          ["Installment", alert.termLabel],
           ["Amount",      `${alert.currency} ${alert.amount.toLocaleString()}`],
           ["Due Date",    new Date(alert.dueDate).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })],
           ["Status",      urgencyLabel],
@@ -87,10 +93,10 @@ export async function POST(req: NextRequest) {
     }
 
     // Fetch all active admin & super_admin emails in one query
-    const result = await query(
+    const adminResult = await query(
       `SELECT name, email FROM users WHERE role IN ('admin', 'super_admin') AND is_active = TRUE`
     );
-    const admins = result.rows as { name: string; email: string }[];
+    const admins = adminResult.rows as { name: string; email: string }[];
 
     if (admins.length === 0) {
       return NextResponse.json({ sent: 0, message: "No admin emails found" });
@@ -109,11 +115,31 @@ export async function POST(req: NextRequest) {
         return resend.emails.send({
           from:    "Aman Berki Estates <noreply@amanberkigroup.com>",
           to:      adminEmails,
-          subject: `${isOverdue ? "⛔ OVERDUE" : "⚠ Payment Deadline"}: ${alert.blockId} Plot #${alert.plotNumber} — ${urgencyLabel}`,
+          subject: `${isOverdue ? "⛔ OVERDUE" : "⚠ Payment Deadline"}: ${alert.blockId} Plot #${alert.plotNumber} ${alert.termLabel} — ${urgencyLabel}`,
           html:    buildAlertHtml(alert),
         });
       })
     );
+
+    // Collect payment_refs that were successfully emailed
+    const successfulRefs = alerts
+      .filter((_, i) => results[i].status === "fulfilled")
+      .map(a => a.paymentRef)
+      .filter((ref, idx, arr) => arr.indexOf(ref) === idx); // dedupe
+
+    // Mark those records as notified in the DB (best-effort)
+    if (successfulRefs.length > 0) {
+      try {
+        await query(
+          `UPDATE payment_records
+           SET notified = TRUE
+           WHERE payment_ref = ANY($1::text[])`,
+          [successfulRefs]
+        );
+      } catch (dbErr) {
+        console.error("[PaymentAlert] Failed to update notified flag:", dbErr);
+      }
+    }
 
     const sent   = results.filter(r => r.status === "fulfilled").length;
     const failed = results

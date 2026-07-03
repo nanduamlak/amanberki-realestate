@@ -75,6 +75,11 @@ function NotifCard({ n, onDismiss, onClose }: { n: PaymentNotification; onDismis
           </div>
           <p className="text-xs font-semibold text-slate-700 mt-0.5 truncate">
             {n.payment.description}
+            {n.termLabel && n.termLabel !== "Term 1" && (
+              <span className="ml-1.5 text-[9px] font-black bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded-full uppercase tracking-wide">
+                {n.termLabel}
+              </span>
+            )}
           </p>
           <div className="flex items-center justify-between mt-1.5">
             <span className={`text-xs font-black ${cfg.text}`}>

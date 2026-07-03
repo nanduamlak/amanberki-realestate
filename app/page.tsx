@@ -1,9 +1,10 @@
 "use client";
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import type { PropertyStatus } from "@/lib/data/properties";
 import { usePropertyStore } from "@/lib/usePropertyStore";
+import { usePlotStore } from "@/lib/usePlotStore";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Map as MapIcon, Search, X, ArrowRight, Eye, EyeOff, Thermometer, Layers, CheckSquare, BarChart3, Printer, Maximize2, Minimize2, GitCompare, Link2 } from "lucide-react";
@@ -139,10 +140,14 @@ export default function HomePage() {
     // New bulk status changes are persisted directly to the DB via the API.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (ov) { try { localStorage.removeItem("estate_status_overrides"); } catch { } }
-    // Feature 11: URL deep link
     const params = new URLSearchParams(window.location.search);
     const bp = params.get("block");
-    if (bp) { const n = parseInt(bp, 10); if (n >= 1) setDrawerBlock(n); }
+    if (bp) {
+      const n = parseInt(bp, 10);
+      if (n >= 1) {
+        Promise.resolve().then(() => setDrawerBlock(n));
+      }
+    }
     // Feature 10: fullscreen change listener
     const onFsc = () => setIsFullscreen(!!document.fullscreenElement);
     document.addEventListener("fullscreenchange", onFsc);
@@ -160,12 +165,35 @@ export default function HomePage() {
     return prop.status;
   }
 
+  const isBlockDimmed = useCallback((blockId: number): boolean => {
+    if (viewMode !== "status" || filter === "all") return false;
+    const prop = getLocalProp(blockId);
+    if (!prop) return true;
+    if (filter === "available") return prop.activePlots === 0;
+    if (filter === "sold") return prop.soldPlots === 0;
+    if (filter === "reserved") return prop.status !== "reserved";
+    if (filter === "under-construction") return prop.status !== "under-construction";
+    return false;
+  }, [filter, viewMode, properties]);
+
   const counts = useMemo(() => {
     const c = { available: 0, sold: 0, reserved: 0, "under-construction": 0 } as Record<PropertyStatus, number>;
     properties.forEach(p => c[getEffectiveStatus(p.blockNumber)]++);
     return c;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [properties, timelineActive, timelineMonth]);
+
+  const plotCounts = useMemo(() => {
+    let total = 0;
+    let sold = 0;
+    let available = 0;
+    properties.forEach(p => {
+      total += p.noOfPlots;
+      sold += p.soldPlots;
+      available += p.activePlots;
+    });
+    return { total, sold, available };
+  }, [properties]);
 
   const priceRange = useMemo(() => {
     const prices = properties.map(p => p.price);
@@ -330,7 +358,7 @@ export default function HomePage() {
     if (selectedBlocks.has(blockId)) return "rgba(0,134,209,0.5)";
     if (viewMode === "heatmap") return heatColor(prop.price, priceRange.min, priceRange.max, isHovered);
     if (viewMode === "zone") return ZONE_COLORS[prop.zone] + (isHovered ? "55" : "28");
-    if (filter !== "all" && status !== filter) return "rgba(0,0,0,0.5)";
+    if (isBlockDimmed(blockId)) return "rgba(0,0,0,0.5)";
     if (isSearched) return STATUS_COLORS[status] + "55";
     return isHovered ? STATUS_COLORS[status] + "33" : "transparent";
   }
@@ -343,7 +371,7 @@ export default function HomePage() {
     if (selectedBlocks.has(blockId)) return "#0086D1";
     if (viewMode === "heatmap") return isHovered ? "#fff" : "rgba(255,255,255,0.3)";
     if (viewMode === "zone") return ZONE_COLORS[prop.zone] + (isHovered ? "ff" : "88");
-    if (filter !== "all" && status !== filter) return "transparent";
+    if (isBlockDimmed(blockId)) return "transparent";
     if (isSearched) return "#fff";
     return isHovered ? "#ffffff" : STATUS_COLORS[status] + "66";
   }
@@ -459,9 +487,19 @@ export default function HomePage() {
                 <span className="text-xs text-slate-400">({properties.length ? Math.round((counts[s] / properties.length) * 100) : 0}%)</span>
               </div>
             ))}
-            <div className="ml-auto flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-500">Total Units</span>
-              <span className="text-sm font-black text-slate-900">{properties.length}</span>
+            <div className="ml-auto flex items-center gap-4 text-xs">
+              <div className="flex items-center gap-2 bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-xl">
+                <span className="font-bold text-slate-500">Blocks:</span>
+                <span className="font-black text-slate-900">{properties.length}</span>
+              </div>
+              <div className="flex items-center gap-2 bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-xl">
+                <span className="font-bold text-slate-500">Total Plots:</span>
+                <span className="font-black text-slate-900">{plotCounts.total}</span>
+                <span className="text-slate-300">|</span>
+                <span className="font-bold text-emerald-600">{plotCounts.available} Avail</span>
+                <span className="text-slate-300">|</span>
+                <span className="font-bold text-red-500">{plotCounts.sold} Sold</span>
+              </div>
             </div>
           </div>
           {/* Segmented progress bar */}
@@ -775,7 +813,7 @@ export default function HomePage() {
                   const isHovered = hoveredBlock === hs.id;
                   const isSearched = searchHighlight === hs.id;
                   const isEditingThis = editMode && selectedShapeIdForEdit === hs.shape_id;
-                  const isDimmed = viewMode === "status" && filter !== "all" && getEffectiveStatus(hs.id) !== filter;
+                  const isDimmed = isBlockDimmed(hs.id);
                   const centroid = getCentroid(hs.points);
                   const showLabel = (showLabels || isHovered || isSearched || isEditingThis || selectedBlocks.has(hs.id)) && !isDimmed;
 
@@ -805,9 +843,17 @@ export default function HomePage() {
                       {/* Feature 4: always-on label text */}
                       {showLabel && (
                         <text x={centroid.x} y={centroid.y} textAnchor="middle" dominantBaseline="middle"
-                          fontSize={showLabels ? 1.2 : 1.4} fontWeight="bold" fill="#fff"
-                          style={{ pointerEvents: "none", filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.9))" }}>
-                          {hs.id}
+                          fill="#fff" style={{ pointerEvents: "none", filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.9))" }}>
+                          <tspan x={centroid.x} dy="-0.2em" fontSize={showLabels ? 1.1 : 1.3} fontWeight="black">B{hs.id}</tspan>
+                          {(() => {
+                            const p = getLocalProp(hs.id);
+                            if (!p) return null;
+                            return (
+                              <tspan x={centroid.x} dy="1.1em" fontSize="0.75" fontWeight="bold" fill={p.activePlots > 0 ? "#4ade80" : "#f87171"}>
+                                {p.soldPlots}/{p.noOfPlots} Sold
+                              </tspan>
+                            );
+                          })()}
                         </text>
                       )}
                     </g>
@@ -858,10 +904,17 @@ export default function HomePage() {
                 <div className="absolute z-50 bg-slate-900 border border-slate-700 shadow-2xl rounded-2xl p-4 text-sm whitespace-nowrap pointer-events-none transform -translate-x-1/2 -translate-y-[calc(100%+20px)]"
                   style={{ left: tooltip.x, top: tooltip.y }}>
                   <div className="font-bold text-base mb-1 text-white">Block {prop.blockNumber} — {prop.noOfPlots} Plots</div>
-                  <div className="flex gap-3 text-slate-300 text-xs mb-3 font-medium">
-                    <span className="font-bold" style={{ color: STATUS_COLORS[prop.status] }}>● {STATUS_LABELS[prop.status]}</span>
-                    <span>📐 {prop.area} m²</span>
-                    <span>{prop.primaryPlots}</span>
+                  <div className="flex flex-col gap-1.5 mb-3 text-slate-300 text-xs font-medium">
+                    <div className="flex items-center gap-3">
+                      <span className="font-bold" style={{ color: STATUS_COLORS[prop.status] }}>● {STATUS_LABELS[prop.status]}</span>
+                      <span>📐 {prop.area} m²</span>
+                      <span>{prop.primaryPlots}</span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5 bg-slate-800 px-2.5 py-1 rounded-lg">
+                      <span className="font-bold text-emerald-400">{prop.activePlots} Available</span>
+                      <span className="text-slate-600">|</span>
+                      <span className="font-bold text-red-400">{prop.soldPlots} Sold</span>
+                    </div>
                   </div>
                   <div className="text-white font-extrabold text-xl">{prop.price > 0 ? `$${prop.price.toLocaleString()}` : "Unlisted"}</div>
                   <div className="mt-2 text-[10px] text-slate-400 text-center uppercase tracking-widest font-bold bg-slate-800 py-1.5 rounded-md">
@@ -1027,6 +1080,17 @@ export default function HomePage() {
               ))}
             </div>
 
+            {/* Visual Plot Matrix */}
+            <div className="px-6 py-5 border-b border-slate-100 shrink-0 bg-slate-50/30">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Plots Map Breakdown</p>
+                <span className="text-[10px] bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full font-bold">
+                  {drawerProp.soldPlots} Sold / {drawerProp.activePlots} Avail
+                </span>
+              </div>
+              <BlockPlotsList key={drawerProp.id} blockId={drawerProp.id} />
+            </div>
+
             {/* Description */}
             <div className="px-6 py-5 border-b border-slate-100 flex-1 overflow-y-auto">
               <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Description</p>
@@ -1118,6 +1182,50 @@ export default function HomePage() {
         </div>
       )}
 
+    </div>
+  );
+}
+
+function BlockPlotsList({ blockId }: { blockId: string }) {
+  const router = useRouter();
+  const { plots, ready } = usePlotStore(blockId);
+
+  if (!ready) {
+    return (
+      <div className="flex items-center justify-center py-6 text-slate-400 text-xs font-medium gap-2">
+        <div className="w-4 h-4 border-2 border-[#0086D1] border-t-transparent rounded-full animate-spin" />
+        Loading plot breakdown...
+      </div>
+    );
+  }
+
+  if (plots.length === 0) {
+    return <p className="text-xs text-slate-400 italic py-2">No plots recorded for this block yet.</p>;
+  }
+
+  return (
+    <div className="grid grid-cols-4 gap-2 max-h-[220px] overflow-y-auto pr-1">
+      {plots.map(plot => {
+        const isSold = plot.purchaserName && 
+                       !plot.purchaserName.toLowerCase().includes("tulu dimtu") && 
+                       plot.purchaserName.trim() !== "";
+        return (
+          <div
+            key={plot.plotNumber}
+            onClick={() => router.push(`/property/${blockId}?plot=${plot.plotNumber}`)}
+            className={`p-2 rounded-xl border text-center cursor-pointer transition-all hover:scale-105 active:scale-95 shadow-sm group relative ${
+              isSold
+                ? "bg-red-50/50 hover:bg-red-50 border-red-100 hover:border-red-200 text-red-700"
+                : "bg-emerald-50/50 hover:bg-emerald-50 border-emerald-100 hover:border-emerald-200 text-emerald-700"
+            }`}
+            title={`Plot ${plot.plotNumber} (${plot.plotSize} m²) - ${isSold ? `Sold to ${plot.purchaserName}` : "Available"}`}
+          >
+            <div className="text-xs font-black">P{plot.plotNumber}</div>
+            <div className="text-[9px] font-bold opacity-60">{plot.plotSize} m²</div>
+            <span className={`absolute top-1 right-1 w-1.5 h-1.5 rounded-full ${isSold ? "bg-red-500" : "bg-emerald-500"}`} />
+          </div>
+        );
+      })}
     </div>
   );
 }

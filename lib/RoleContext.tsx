@@ -39,17 +39,21 @@ export function RoleProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Skip re-fetching on the login page — the user is not authenticated there
     if (pathname === "/login") {
-      setUser(null);
-      setIsLoading(false);
+      Promise.resolve().then(() => {
+        setUser(null);
+        setIsLoading(false);
+      });
       return;
     }
 
-    setIsLoading(true);
-    fetch("/api/auth/me")
-      .then((r) => r.json())
-      .then((d) => setUser(d.user ?? null))
-      .catch(() => setUser(null))
-      .finally(() => setIsLoading(false));
+    Promise.resolve().then(() => {
+      setIsLoading(true);
+      fetch("/api/auth/me")
+        .then((r) => r.json())
+        .then((d) => setUser(d.user ?? null))
+        .catch(() => setUser(null))
+        .finally(() => setIsLoading(false));
+    });
   }, [pathname]); // Re-fetch whenever the route changes
 
   const role = user?.role ?? null;

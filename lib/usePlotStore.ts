@@ -24,7 +24,9 @@ export function usePlotStore(blockId: string) {
     }
   }, [blockId]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    Promise.resolve().then(() => load());
+  }, [load]);
 
   // ── Add ───────────────────────────────────────────────────
   const add = useCallback(async (p: PlotDetail) => {
@@ -97,7 +99,8 @@ export const BLANK_PLOT: PlotDetail = {
   livingRooms: undefined, kitchen: undefined, dining: undefined,
   garage: undefined, balcony: false, garden: false, rooftop: false,
   orientation: "", yearBuilt: undefined,
-  contractorName: "", referenceNo: "", ownershipHistory: [], paymentSchedule: [],
+  contractorName: "", referenceNo: "", buyerGroup: null,
+  ownershipHistory: [], paymentSchedule: [],
 };
 
 export const HOUSE_TYPES = ["Villa", "Townhouse", "Duplex", "Apartment", "Studio", "Commercial"] as const;

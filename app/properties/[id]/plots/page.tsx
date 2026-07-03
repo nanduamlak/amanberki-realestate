@@ -1,5 +1,5 @@
 "use client";
-import { useState, useMemo, use } from "react";
+import React, { useState, useMemo, use } from "react";
 import { useRole } from "@/lib/RoleContext";
 import { useRouter } from "next/navigation";
 import { usePlotStore, BLANK_PLOT, HOUSE_TYPES, DEED_STATUSES, CONSTRUCTION_STATUSES, type PlotDetail } from "@/lib/usePlotStore";
@@ -11,10 +11,10 @@ import { Plus, Pencil, Trash2, X, Save, ArrowLeft, RotateCcw, BedDouble, Bath, C
 const INPUT = "w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0086D1]/25 focus:border-[#0086D1] transition-all font-medium text-slate-900 placeholder:text-slate-400";
 const CHK = "w-4 h-4 accent-[#0086D1] cursor-pointer";
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</label>
+      <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-1">{label}</label>
       {children}
     </div>
   );
@@ -26,309 +26,6 @@ function CheckField({ label, checked, onChange }: { label: string; checked: bool
       <input type="checkbox" className={CHK} checked={checked} onChange={e => onChange(e.target.checked)} />
       <span className="text-sm font-semibold text-slate-700">{label}</span>
     </label>
-  );
-}
-
-/* ── form modal ──────────────────────────────────────────── */
-function PlotFormModal({ initial, isNew, onSave, onClose }: {
-  initial: PlotDetail; isNew: boolean;
-  onSave: (p: PlotDetail) => void; onClose: () => void;
-}) {
-  const [f, setF] = useState<PlotDetail>(initial);
-  const s = <K extends keyof PlotDetail>(k: K, v: PlotDetail[K]) => setF(p => ({ ...p, [k]: v }));
-  const valid = f.plotNumber.trim() !== "" && f.plotSize > 0;
-
-  return (
-    <div className="fixed inset-0 z-[300] flex items-center justify-center p-4"
-      style={{ background: "rgba(10,18,30,.65)", backdropFilter: "blur(6px)" }}
-      onClick={onClose}>
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden"
-        style={{ animation: "pmIn .2s ease" }} onClick={e => e.stopPropagation()}>
-        <style>{`@keyframes pmIn{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:none}}`}</style>
-
-        {/* header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50 shrink-0">
-          <h2 className="font-extrabold text-slate-900">{isNew ? "Add Plot" : `Edit Plot #${f.plotNumber}`}</h2>
-          <button onClick={onClose} className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500"><X size={14} /></button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-
-          {/* Basic */}
-          <p className="text-[10px] font-black uppercase tracking-widest text-[#0086D1]">Plot Information</p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            <Field label="Plot Number *">
-              <input className={INPUT} value={f.plotNumber} onChange={e => s("plotNumber", e.target.value)} placeholder="1" />
-            </Field>
-            <Field label="Plot Size (m²) *">
-              <input className={INPUT} type="number" value={f.plotSize || ""} onChange={e => s("plotSize", Number(e.target.value))} placeholder="400" />
-            </Field>
-            <Field label="Built Area">
-              <input className={INPUT} value={f.builtArea} onChange={e => s("builtArea", e.target.value)} placeholder="320 m²" />
-            </Field>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Purchaser Name">
-              <input className={INPUT} value={f.purchaserName} onChange={e => s("purchaserName", e.target.value)} placeholder="Full name or company" />
-            </Field>
-            <Field label="Reference No">
-              <input className={INPUT} value={f.referenceNo || ""} onChange={e => s("referenceNo", e.target.value)} placeholder="Ref-001" />
-            </Field>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Title Deeds Status">
-              <select className={INPUT} value={f.titleDeedsStatus} onChange={e => s("titleDeedsStatus", e.target.value)}>
-                <option value="">— select —</option>
-                {DEED_STATUSES.map(d => <option key={d} value={d}>{d}</option>)}
-              </select>
-            </Field>
-            <Field label="Contractor Name">
-              <input className={INPUT} value={f.contractorName || ""} onChange={e => s("contractorName", e.target.value)} placeholder="Contractor Ltd." />
-            </Field>
-          </div>
-
-          <Field label="Construction Status">
-            <select className={INPUT} value={f.constructionStatus} onChange={e => s("constructionStatus", e.target.value)}>
-              {CONSTRUCTION_STATUSES.map(c => <option key={c} value={c}>{c || "— select —"}</option>)}
-            </select>
-          </Field>
-
-          {/* House */}
-          <p className="text-[10px] font-black uppercase tracking-widest text-[#0086D1] pt-2 border-t border-slate-100">House / Unit Details</p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            <Field label="House Type">
-              <select className={INPUT} value={f.houseType ?? ""} onChange={e => s("houseType", e.target.value)}>
-                <option value="">— select —</option>
-                {HOUSE_TYPES.map(h => <option key={h}>{h}</option>)}
-              </select>
-            </Field>
-            <Field label="Floors">
-              <input className={INPUT} type="number" value={f.floors ?? ""} onChange={e => s("floors", e.target.value ? Number(e.target.value) : undefined)} placeholder="2" />
-            </Field>
-            <Field label="Year Built">
-              <input className={INPUT} type="number" value={f.yearBuilt ?? ""} onChange={e => s("yearBuilt", e.target.value ? Number(e.target.value) : undefined)} placeholder="2024" />
-            </Field>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            {([
-              ["bedrooms", "Bedrooms"], ["bathrooms", "Bathrooms"],
-              ["livingRooms", "Living Rooms"], ["kitchen", "Kitchen"],
-              ["dining", "Dining"], ["garage", "Garage / Parking"],
-            ] as [keyof PlotDetail, string][]).map(([k, lbl]) => (
-              <Field key={k} label={lbl}>
-                <input className={INPUT} type="number" min="0"
-                  value={(f[k] as number | undefined) ?? ""}
-                  onChange={e => s(k, e.target.value ? Number(e.target.value) : undefined)}
-                  placeholder="0" />
-              </Field>
-            ))}
-          </div>
-
-          <Field label="Orientation">
-            <input className={INPUT} value={f.orientation ?? ""} onChange={e => s("orientation", e.target.value)} placeholder="e.g. North-East Facing" />
-          </Field>
-
-          <div className="flex flex-wrap gap-6">
-            <CheckField label="Balcony" checked={!!f.balcony} onChange={v => s("balcony", v)} />
-            <CheckField label="Garden" checked={!!f.garden} onChange={v => s("garden", v)} />
-            <CheckField label="Rooftop" checked={!!f.rooftop} onChange={v => s("rooftop", v)} />
-          </div>
-
-          {/* Ownership History */}
-          <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-            <p className="text-[10px] font-black uppercase tracking-widest text-[#0086D1]">Ownership History</p>
-            <button type="button" onClick={() => {
-              const h = f.ownershipHistory || [];
-              s("ownershipHistory", [...h, { ownerName: "", transferDate: "", status: "Previous", notes: "" }]);
-            }} className="text-[#0086D1] text-xs font-bold flex items-center gap-1 hover:underline">
-              <Plus size={12} /> Add Record
-            </button>
-          </div>
-          
-          <div className="space-y-3">
-            {(f.ownershipHistory || []).map((hist, idx) => (
-              <div key={idx} className="p-3 bg-slate-50 border border-slate-100 rounded-xl relative">
-                <button type="button" onClick={() => {
-                  const h = [...(f.ownershipHistory || [])];
-                  h.splice(idx, 1);
-                  s("ownershipHistory", h);
-                }} className="absolute top-2 right-2 text-rose-400 hover:text-rose-600 p-1"><Trash2 size={14}/></button>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3 pr-6">
-                  <Field label="Owner Name">
-                    <input className={INPUT + " py-1.5 text-xs"} value={hist.ownerName} onChange={e => {
-                      const h = [...(f.ownershipHistory || [])];
-                      h[idx] = { ...h[idx], ownerName: e.target.value };
-                      s("ownershipHistory", h);
-                    }} placeholder="Name" />
-                  </Field>
-                  <Field label="Transfer Date">
-                    <input className={INPUT + " py-1.5 text-xs"} type="date" value={hist.transferDate} onChange={e => {
-                      const h = [...(f.ownershipHistory || [])];
-                      h[idx] = { ...h[idx], transferDate: e.target.value };
-                      s("ownershipHistory", h);
-                    }} />
-                  </Field>
-                  <Field label="Status">
-                    <select className={INPUT + " py-1.5 text-xs"} value={hist.status} onChange={e => {
-                      const h = [...(f.ownershipHistory || [])];
-                      h[idx] = { ...h[idx], status: e.target.value as "Current" | "Previous" };
-                      s("ownershipHistory", h);
-                    }}>
-                      <option value="Current">Current</option>
-                      <option value="Previous">Previous</option>
-                    </select>
-                  </Field>
-                </div>
-                <Field label="Notes">
-                  <input className={INPUT + " py-1.5 text-xs"} value={hist.notes || ""} onChange={e => {
-                    const h = [...(f.ownershipHistory || [])];
-                    h[idx] = { ...h[idx], notes: e.target.value };
-                    s("ownershipHistory", h);
-                  }} placeholder="Optional note" />
-                </Field>
-              </div>
-            ))}
-            {(!f.ownershipHistory || f.ownershipHistory.length === 0) && (
-              <div className="text-xs text-slate-400 text-center py-4 border border-dashed border-slate-200 rounded-xl">
-                No history records. Click Add Record to insert one.
-              </div>
-            )}
-          </div>
-
-          {/* Notes */}
-          <p className="text-[10px] font-black uppercase tracking-widest text-[#0086D1] pt-2 border-t border-slate-100">Notes</p>
-          <Field label="Remark">
-            <textarea className={INPUT + " resize-none"} rows={2} value={f.remark} onChange={e => s("remark", e.target.value)} placeholder="Any internal note…" />
-          </Field>
-
-          {/* Payment Schedule */}
-          <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-            <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600 flex items-center gap-1.5">
-              <DollarSign size={12} /> Payment Schedule
-            </p>
-            <button type="button" onClick={() => {
-              const ps = f.paymentSchedule || [];
-              const newId = `pay-${Date.now()}`;
-              s("paymentSchedule", [...ps, {
-                id: newId,
-                description: "",
-                amount: 0,
-                currency: "ETB" as const,
-                dueDate: "",
-                status: "pending" as const,
-                notes: "",
-              }]);
-            }} className="text-emerald-600 text-xs font-bold flex items-center gap-1 hover:underline">
-              <Plus size={12} /> Add Payment
-            </button>
-          </div>
-
-          <div className="space-y-3">
-            {(f.paymentSchedule || []).map((pay, idx) => {
-              const daysLeft = pay.dueDate
-                ? Math.round((new Date(pay.dueDate).setHours(0,0,0,0) - new Date().setHours(0,0,0,0)) / 86400000)
-                : null;
-              const isOverdue = daysLeft !== null && daysLeft < 0 && pay.status === "pending";
-              return (
-                <div key={pay.id} className={`p-3.5 rounded-xl border relative ${
-                  pay.status === "paid" ? "bg-emerald-50 border-emerald-100" :
-                  isOverdue ? "bg-red-50 border-red-200" :
-                  "bg-slate-50 border-slate-100"
-                }`}>
-                  {/* Status indicator */}
-                  <div className="flex items-center justify-between mb-3 pr-6">
-                    <div className="flex items-center gap-2">
-                      {pay.status === "paid"
-                        ? <CheckCircle2 size={14} className="text-emerald-500" />
-                        : isOverdue
-                          ? <AlertCircle size={14} className="text-red-500" />
-                          : <CalendarClock size={14} className="text-amber-500" />
-                      }
-                      <span className={`text-[10px] font-black uppercase tracking-wider ${
-                        pay.status === "paid" ? "text-emerald-600" :
-                        isOverdue ? "text-red-600" : "text-amber-600"
-                      }`}>
-                        {pay.status === "paid" ? "Paid" : isOverdue ? `Overdue by ${Math.abs(daysLeft!)}d` : daysLeft !== null ? `${daysLeft}d remaining` : "No date set"}
-                      </span>
-                    </div>
-                    <button type="button" onClick={() => {
-                      const ps = [...(f.paymentSchedule || [])];
-                      ps.splice(idx, 1);
-                      s("paymentSchedule", ps);
-                    }} className="absolute top-2.5 right-2.5 text-rose-400 hover:text-rose-600 p-1"><Trash2 size={13}/></button>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-                    <Field label="Description">
-                      <input className={INPUT + " py-1.5 text-xs"} value={pay.description}
-                        onChange={e => { const ps = [...(f.paymentSchedule || [])]; ps[idx] = {...ps[idx], description: e.target.value}; s("paymentSchedule", ps); }}
-                        placeholder="Down Payment / Installment 2…" />
-                    </Field>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Field label="Amount">
-                        <input className={INPUT + " py-1.5 text-xs"} type="number" value={pay.amount || ""}
-                          onChange={e => { const ps = [...(f.paymentSchedule || [])]; ps[idx] = {...ps[idx], amount: Number(e.target.value)}; s("paymentSchedule", ps); }}
-                          placeholder="0" />
-                      </Field>
-                      <Field label="Currency">
-                        <select className={INPUT + " py-1.5 text-xs"} value={pay.currency}
-                          onChange={e => { const ps = [...(f.paymentSchedule || [])]; ps[idx] = {...ps[idx], currency: e.target.value as "ETB"|"USD"}; s("paymentSchedule", ps); }}>
-                          <option value="ETB">ETB</option>
-                          <option value="USD">USD</option>
-                        </select>
-                      </Field>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field label="Due Date">
-                      <input className={INPUT + " py-1.5 text-xs"} type="date" value={pay.dueDate}
-                        onChange={e => { const ps = [...(f.paymentSchedule || [])]; ps[idx] = {...ps[idx], dueDate: e.target.value}; s("paymentSchedule", ps); }} />
-                    </Field>
-                    <Field label="Status">
-                      <select className={INPUT + " py-1.5 text-xs"} value={pay.status}
-                        onChange={e => { const ps = [...(f.paymentSchedule || [])]; ps[idx] = {...ps[idx], status: e.target.value as PaymentRecord["status"]}; s("paymentSchedule", ps); }}>
-                        <option value="pending">Pending</option>
-                        <option value="paid">Paid</option>
-                        <option value="overdue">Overdue</option>
-                        <option value="waived">Waived</option>
-                      </select>
-                    </Field>
-                  </div>
-
-                  {pay.dueDate && pay.status === "paid" && (
-                    <div className="mt-3">
-                      <Field label="Paid Date">
-                        <input className={INPUT + " py-1.5 text-xs"} type="date" value={pay.paidDate || ""}
-                          onChange={e => { const ps = [...(f.paymentSchedule || [])]; ps[idx] = {...ps[idx], paidDate: e.target.value}; s("paymentSchedule", ps); }} />
-                      </Field>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-            {(!f.paymentSchedule || f.paymentSchedule.length === 0) && (
-              <div className="text-xs text-slate-400 text-center py-4 border border-dashed border-slate-200 rounded-xl flex flex-col items-center gap-2">
-                <DollarSign size={18} className="text-slate-300" />
-                No payments scheduled. Click Add Payment to create one.
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50 shrink-0">
-          <button onClick={onClose} className="px-5 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-100 transition-all">Cancel</button>
-          <button onClick={() => valid && onSave(f)} disabled={!valid}
-            className="flex items-center gap-2 px-5 py-2 rounded-xl bg-[#0086D1] text-white font-bold text-sm hover:bg-[#006eb0] disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow">
-            <Save size={14} />{isNew ? "Add Plot" : "Save Changes"}
-          </button>
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -367,38 +64,6 @@ export default function PlotManagementPage({ params }: { params: Promise<{ id: s
   const [constFilter, setConstFilter] = useState("all");
   const [houseFilter, setHouseFilter] = useState("all");
 
-  if (!isLoading && !isSuperAdmin && !isAdmin) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-slate-50">
-        <ShieldCheck size={32} className="text-rose-500" />
-        <p className="font-bold text-slate-800">Access Denied</p>
-        <button onClick={() => router.push("/properties")} className="px-4 py-2 bg-slate-900 text-white rounded-xl font-bold text-sm">Back</button>
-      </div>
-    );
-  }
-
-  if (!isLoading && !property) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-slate-50">
-        <p className="font-bold text-slate-800">Block <code>{id}</code> not found.</p>
-        <button onClick={() => router.push("/properties")} className="px-4 py-2 bg-slate-900 text-white rounded-xl font-bold text-sm">← Back</button>
-      </div>
-    );
-  }
-
-  const nextPlotNumber = () => {
-    const nums = plots.map(p => parseInt(p.plotNumber) || 0);
-    return String((nums.length ? Math.max(...nums) : 0) + 1);
-  };
-
-  const openAdd = () => { setIsNew(true); setFormTarget({ ...BLANK_PLOT, plotNumber: nextPlotNumber() }); };
-  const openEdit = (p: PlotDetail) => { setIsNew(false); setFormTarget({ ...p }); };
-
-  const handleSave = (p: PlotDetail) => {
-    if (isNew) add(p); else update(p.plotNumber, p);
-    setFormTarget(null);
-  };
-
   /* summary stats */
   const stats = useMemo(() => ({
     total: plots.length,
@@ -424,6 +89,466 @@ export default function PlotManagementPage({ params }: { params: Promise<{ id: s
     return data;
   }, [plots, search, deedFilter, constFilter, houseFilter]);
 
+  const nextPlotNumber = () => {
+    const nums = plots.map(p => parseInt(p.plotNumber) || 0);
+    return String((nums.length ? Math.max(...nums) : 0) + 1);
+  };
+
+  const openAdd = () => { 
+    setIsNew(true); 
+    setFormTarget({ ...BLANK_PLOT, plotNumber: nextPlotNumber() }); 
+  };
+  
+  const openEdit = (p: PlotDetail) => { 
+    setIsNew(false); 
+    setFormTarget({ ...p }); 
+  };
+
+  const handleSave = () => {
+    if (!formTarget) return;
+    if (isNew) add(formTarget); else update(formTarget.plotNumber, formTarget);
+    setFormTarget(null);
+  };
+
+  const s = <K extends keyof PlotDetail>(k: K, v: PlotDetail[K]) => {
+    if (!formTarget) return;
+    setFormTarget(p => p ? ({ ...p, [k]: v }) : null);
+  };
+
+  const handlePaymentFieldChange = (idx: number, key: string, val: any) => {
+    if (!formTarget) return;
+    const ps = [...(formTarget.paymentSchedule || [])];
+    const item = { ...ps[idx], [key]: val };
+
+    if (!item.termType) {
+      item.termType = "one_term";
+    }
+
+    const total = Number(item.totalAmount) || 0;
+
+    if (item.termType === "one_term") {
+      if (key === "totalAmount") {
+        item.amount = total;
+      }
+      
+      const toBePaid = Number(item.amount) || 0;
+      
+      if (item.status === "paid") {
+        item.remainingAmount = 0;
+        item.paidAmount = toBePaid;
+        if (!item.paidDate) {
+          item.paidDate = new Date().toISOString().split("T")[0];
+        }
+      } else {
+        item.remainingAmount = total;
+        item.paidAmount = 0;
+        item.paidDate = undefined;
+      }
+    } else {
+      if (key === "totalAmount" || key === "amount") {
+        const term1 = Number(item.amount) || 0;
+        item.amountTerm2 = Math.max(0, total - term1);
+      }
+
+      if (item.status === "paid" && !item.paidDate) {
+        item.paidDate = new Date().toISOString().split("T")[0];
+      } else if (item.status !== "paid") {
+        item.paidDate = undefined;
+      }
+
+      if (item.statusTerm2 === "paid" && !item.paidDateTerm2) {
+        item.paidDateTerm2 = new Date().toISOString().split("T")[0];
+      } else if (item.statusTerm2 !== "paid") {
+        item.paidDateTerm2 = undefined;
+      }
+
+      const t1Remaining = item.status === "paid" || item.status === "waived" ? 0 : (Number(item.amount) || 0);
+      const t2Remaining = item.statusTerm2 === "paid" || item.statusTerm2 === "waived" ? 0 : (Number(item.amountTerm2) || 0);
+      item.remainingAmount = t1Remaining + t2Remaining;
+
+      const t1Paid = item.status === "paid" ? (Number(item.amount) || 0) : 0;
+      const t2Paid = item.statusTerm2 === "paid" ? (Number(item.amountTerm2) || 0) : 0;
+      item.paidAmount = t1Paid + t2Paid;
+    }
+
+    ps[idx] = item;
+    s("paymentSchedule", ps);
+  };
+
+  const valid = formTarget ? (formTarget.plotNumber.trim() !== "" && formTarget.plotSize > 0) : false;
+
+  if (!isLoading && !isSuperAdmin && !isAdmin) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-slate-50">
+        <ShieldCheck size={32} className="text-rose-500" />
+        <p className="font-bold text-slate-800">Access Denied</p>
+        <button onClick={() => router.push("/properties")} className="px-4 py-2 bg-slate-900 text-white rounded-xl font-bold text-sm">Back</button>
+      </div>
+    );
+  }
+
+  if (!isLoading && !property) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-slate-50">
+        <p className="font-bold text-slate-800">Block <code>{id}</code> not found.</p>
+        <button onClick={() => router.push("/properties")} className="px-4 py-2 bg-slate-900 text-white rounded-xl font-bold text-sm">← Back</button>
+      </div>
+    );
+  }
+
+  // ── RENDER DETAILED EDIT PAGE VIEW ──
+  if (formTarget) {
+    return (
+      <div className="min-h-screen bg-slate-50 pb-20">
+        <div className="max-w-4xl mx-auto px-6 py-10 space-y-8">
+          
+          {/* Header */}
+          <div className="flex items-center gap-4 border-b border-slate-200/60 pb-6">
+            <button 
+              onClick={() => setFormTarget(null)}
+              className="h-10 w-10 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600 transition-all shrink-0"
+            >
+              <ArrowLeft size={16} />
+            </button>
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                Block {property?.blockNumber}
+              </span>
+              <h1 className="text-2xl font-extrabold text-slate-900 mt-0.5">
+                {isNew ? "Add New Plot" : `Edit Plot #${formTarget.plotNumber}`}
+              </h1>
+            </div>
+          </div>
+
+          {/* Form Cards */}
+          <div className="bg-white rounded-3xl border border-slate-200/60 p-6 space-y-6 shadow-sm">
+            
+            {/* Basic Info */}
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-wider text-[#0086D1] mb-4">Plot Specifications</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <Field label="Plot Number *">
+                  <input className={INPUT} value={formTarget.plotNumber} onChange={e => s("plotNumber", e.target.value)} placeholder="1" />
+                </Field>
+                <Field label="Plot Size (m²) *">
+                  <input className={INPUT} type="number" value={formTarget.plotSize || ""} onChange={e => s("plotSize", Number(e.target.value))} placeholder="400" />
+                </Field>
+                <Field label="Built Area">
+                  <input className={INPUT} value={formTarget.builtArea} onChange={e => s("builtArea", e.target.value)} placeholder="320 m²" />
+                </Field>
+              </div>
+            </div>
+
+            {/* Purchaser Info */}
+            <div className="border-t border-slate-100 pt-6">
+              <p className="text-[11px] font-black uppercase tracking-wider text-[#0086D1] mb-4">Purchaser &amp; Group</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field label="Purchaser Name">
+                  <input className={INPUT} value={formTarget.purchaserName} onChange={e => s("purchaserName", e.target.value)} placeholder="Full name or company" />
+                </Field>
+                <Field label="Reference No">
+                  <input className={INPUT} value={formTarget.referenceNo || ""} onChange={e => s("referenceNo", e.target.value)} placeholder="Ref-001" />
+                </Field>
+              </div>
+
+              {/* Buyer Group */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                <Field label={<span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full bg-orange-500"></span>Buyer Group <span className="text-[9px] text-slate-400 font-normal">(optional)</span></span>}>
+                  <input
+                    list="buyer-groups-list"
+                    className={INPUT}
+                    value={formTarget.buyerGroup ?? ""}
+                    onChange={e => s("buyerGroup", e.target.value || null)}
+                    placeholder="e.g. Panorama"
+                  />
+                  <datalist id="buyer-groups-list">
+                    <option value="Panorama" />
+                  </datalist>
+                </Field>
+                <Field label="Contractor Name">
+                  <input className={INPUT} value={formTarget.contractorName || ""} onChange={e => s("contractorName", e.target.value)} placeholder="Contractor Ltd." />
+                </Field>
+              </div>
+            </div>
+
+            {/* Legal Status */}
+            <div className="border-t border-slate-100 pt-6">
+              <p className="text-[11px] font-black uppercase tracking-wider text-[#0086D1] mb-4">Legal &amp; Construction Status</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field label="Title Deeds Status">
+                  <select className={INPUT} value={formTarget.titleDeedsStatus} onChange={e => s("titleDeedsStatus", e.target.value)}>
+                    <option value="">— select —</option>
+                    {DEED_STATUSES.map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                </Field>
+                <Field label="Construction Status">
+                  <select className={INPUT} value={formTarget.constructionStatus} onChange={e => s("constructionStatus", e.target.value)}>
+                    {CONSTRUCTION_STATUSES.map(c => <option key={c} value={c}>{c || "— select —"}</option>)}
+                  </select>
+                </Field>
+              </div>
+            </div>
+
+            {/* House Details */}
+            <div className="border-t border-slate-100 pt-6">
+              <p className="text-[11px] font-black uppercase tracking-wider text-[#0086D1] mb-4">House / Unit Details</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                <Field label="House Type">
+                  <select className={INPUT} value={formTarget.houseType ?? ""} onChange={e => s("houseType", e.target.value)}>
+                    <option value="">— select —</option>
+                    {HOUSE_TYPES.map(h => <option key={h}>{h}</option>)}
+                  </select>
+                </Field>
+                <Field label="Floors">
+                  <input className={INPUT} type="number" value={formTarget.floors ?? ""} onChange={e => s("floors", e.target.value ? Number(e.target.value) : undefined)} placeholder="2" />
+                </Field>
+                <Field label="Year Built">
+                  <input className={INPUT} type="number" value={formTarget.yearBuilt ?? ""} onChange={e => s("yearBuilt", e.target.value ? Number(e.target.value) : undefined)} placeholder="2024" />
+                </Field>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-4">
+                {([
+                  ["bedrooms", "Bedrooms"], ["bathrooms", "Bathrooms"],
+                  ["livingRooms", "Living Rooms"], ["kitchen", "Kitchen"],
+                  ["dining", "Dining"], ["garage", "Garage / Parking"],
+                ] as [keyof PlotDetail, string][]).map(([k, lbl]) => (
+                  <Field key={k} label={lbl}>
+                    <input className={INPUT} type="number" min="0"
+                      value={(formTarget[k] as number | undefined) ?? ""}
+                      onChange={e => s(k, e.target.value ? Number(e.target.value) : undefined)}
+                      placeholder="0" />
+                  </Field>
+                ))}
+              </div>
+
+              <Field label="Orientation">
+                <input className={INPUT} value={formTarget.orientation ?? ""} onChange={e => s("orientation", e.target.value)} placeholder="e.g. North-East Facing" />
+              </Field>
+
+              {/* Checkboxes */}
+              <div className="grid grid-cols-2 gap-4 mt-4">
+                <CheckField label="Has Balcony" checked={!!formTarget.balcony} onChange={v => s("balcony", v)} />
+                <CheckField label="Has Garden" checked={!!formTarget.garden} onChange={v => s("garden", v)} />
+                <CheckField label="Has Rooftop Access" checked={!!formTarget.rooftop} onChange={v => s("rooftop", v)} />
+              </div>
+            </div>
+
+            {/* Remarks */}
+            <div className="border-t border-slate-100 pt-6">
+              <Field label="Remarks &amp; Notes">
+                <textarea rows={3} className={INPUT} value={formTarget.remark || ""} onChange={e => s("remark", e.target.value)} placeholder="Enter details..." />
+              </Field>
+            </div>
+
+          </div>
+
+          {/* Payment Schedule Card */}
+          <div className="bg-white rounded-3xl border border-slate-200/60 p-6 space-y-6 shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div>
+                <p className="text-[11px] font-black uppercase tracking-wider text-[#0086D1]">Payment Schedule</p>
+                <p className="text-xs text-slate-500 mt-0.5">Specify payment installments and due dates</p>
+              </div>
+              <button 
+                onClick={() => {
+                  const ps = [...(formTarget.paymentSchedule || [])];
+                  ps.push({ 
+                    id: `pay-${Date.now()}`,
+                    description: `Installment ${ps.length + 1}`,
+                    currency: "ETB", 
+                    amount: 0, 
+                    status: "pending", 
+                    dueDate: new Date().toISOString().split("T")[0] 
+                  });
+                  s("paymentSchedule", ps);
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-indigo-200 text-indigo-700 bg-indigo-50/50 font-bold text-xs hover:bg-indigo-50 transition-all"
+              >
+                <Plus size={14} /> Add Payment
+              </button>
+            </div>
+
+            {/* List */}
+            <div className="space-y-4">
+              {formTarget.paymentSchedule?.map((pay, idx) => (
+                <div key={idx} className="relative p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-4">
+                  {/* Delete payment button */}
+                  <button 
+                    onClick={() => {
+                      const ps = formTarget.paymentSchedule!.filter((_, i) => i !== idx);
+                      s("paymentSchedule", ps);
+                    }}
+                    className="absolute top-3 right-3 text-slate-400 hover:text-red-500 transition-colors"
+                  >
+                    <X size={16} />
+                  </button>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pr-6">
+                    <Field label="Currency *">
+                      <input className={INPUT + " py-1.5 text-xs font-bold"} value={pay.currency || "ETB"}
+                        onChange={e => handlePaymentFieldChange(idx, "currency", e.target.value)} />
+                    </Field>
+                    <Field label="Term Config *">
+                      <select className={INPUT + " py-1.5 text-xs font-semibold"} value={pay.termType || "one_term"}
+                        onChange={e => handlePaymentFieldChange(idx, "termType", e.target.value)}>
+                        <option value="one_term">One Term</option>
+                        <option value="two_term">Two Terms (Split)</option>
+                      </select>
+                    </Field>
+                    <Field label="Total Agreement Value *">
+                      <input className={INPUT + " py-1.5 text-xs font-extrabold text-slate-900"} type="number" value={pay.totalAmount ?? ""}
+                        onChange={e => handlePaymentFieldChange(idx, "totalAmount", e.target.value ? Number(e.target.value) : undefined)}
+                        placeholder="e.g. 2500000" />
+                    </Field>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Remaining Balance</label>
+                      <div className="w-full px-3 py-1.5 text-xs bg-slate-100 border border-slate-200 rounded-xl font-extrabold text-slate-700 flex items-center justify-between">
+                        <span>{pay.currency} {(pay.remainingAmount ?? 0).toLocaleString()}</span>
+                        <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold bg-white px-2 py-0.5 rounded border border-slate-200">Auto</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Conditional Terms Rendering */}
+                  {pay.termType === "two_term" ? (
+                    <div className="space-y-4 pt-3 border-t border-dashed border-slate-200">
+                      {/* Term 1 Box */}
+                      <div className="p-3 bg-white border border-slate-200/80 rounded-xl space-y-3 shadow-sm">
+                        <p className="text-[10px] font-black uppercase tracking-wider text-[#0086D1]">1st Installment (Term 1)</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <Field label="Amount to be Paid *">
+                            <input className={INPUT + " py-1.5 text-xs"} type="number" value={pay.amount ?? ""}
+                              onChange={e => handlePaymentFieldChange(idx, "amount", e.target.value ? Number(e.target.value) : undefined)}
+                              placeholder="Amount" />
+                          </Field>
+                          <Field label="Due Date *">
+                            <input className={INPUT + " py-1.5 text-xs"} type="date" value={pay.dueDate}
+                              onChange={e => handlePaymentFieldChange(idx, "dueDate", e.target.value)} />
+                          </Field>
+                          <Field label="Status *">
+                            <select className={INPUT + " py-1.5 text-xs font-semibold"} value={pay.status}
+                              onChange={e => handlePaymentFieldChange(idx, "status", e.target.value)}>
+                              <option value="pending">Pending</option>
+                              <option value="paid">Paid</option>
+                              <option value="overdue">Overdue</option>
+                              <option value="waived">Waived</option>
+                            </select>
+                          </Field>
+                        </div>
+                        {pay.status === "paid" && (
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <Field label="Paid Date">
+                              <input className={INPUT + " py-1.5 text-xs"} type="date" value={pay.paidDate || ""}
+                                onChange={e => handlePaymentFieldChange(idx, "paidDate", e.target.value)} />
+                            </Field>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Term 2 Box */}
+                      <div className="p-3 bg-white border border-slate-200/80 rounded-xl space-y-3 shadow-sm">
+                        <p className="text-[10px] font-black uppercase tracking-wider text-purple-600">2nd Installment (Term 2)</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Amount to be Paid *</label>
+                            <div className="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 flex items-center justify-between">
+                              <span>{(pay.amountTerm2 || 0).toLocaleString()}</span>
+                              <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Auto</span>
+                            </div>
+                          </div>
+                          <Field label="Due Date *">
+                            <input className={INPUT + " py-1.5 text-xs"} type="date" value={pay.dueDateTerm2 || ""}
+                              onChange={e => handlePaymentFieldChange(idx, "dueDateTerm2", e.target.value)} />
+                          </Field>
+                          <Field label="Status *">
+                            <select className={INPUT + " py-1.5 text-xs font-semibold"} value={pay.statusTerm2 || "pending"}
+                              onChange={e => handlePaymentFieldChange(idx, "statusTerm2", e.target.value)}>
+                              <option value="pending">Pending</option>
+                              <option value="paid">Paid</option>
+                              <option value="overdue">Overdue</option>
+                              <option value="waived">Waived</option>
+                            </select>
+                          </Field>
+                        </div>
+                        {pay.statusTerm2 === "paid" && (
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <Field label="Paid Date">
+                              <input className={INPUT + " py-1.5 text-xs"} type="date" value={pay.paidDateTerm2 || ""}
+                                onChange={e => handlePaymentFieldChange(idx, "paidDateTerm2", e.target.value)} />
+                            </Field>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    /* One Term Box */
+                    <div className="pt-3 border-t border-dashed border-slate-200 space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <Field label="Amount to be Paid *">
+                          <input className={INPUT + " py-1.5 text-xs"} type="number" value={pay.amount ?? ""}
+                            onChange={e => handlePaymentFieldChange(idx, "amount", e.target.value ? Number(e.target.value) : undefined)}
+                            placeholder="Amount" />
+                        </Field>
+                        <Field label="Due Date *">
+                          <input className={INPUT + " py-1.5 text-xs"} type="date" value={pay.dueDate}
+                            onChange={e => handlePaymentFieldChange(idx, "dueDate", e.target.value)} />
+                        </Field>
+                        <Field label="Status *">
+                          <select className={INPUT + " py-1.5 text-xs font-semibold"} value={pay.status}
+                            onChange={e => handlePaymentFieldChange(idx, "status", e.target.value)}>
+                            <option value="pending">Pending</option>
+                            <option value="paid">Paid</option>
+                            <option value="overdue">Overdue</option>
+                            <option value="waived">Waived</option>
+                          </select>
+                        </Field>
+                      </div>
+                      {pay.status === "paid" && (
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <Field label="Paid Date">
+                            <input className={INPUT + " py-1.5 text-xs"} type="date" value={pay.paidDate || ""}
+                              onChange={e => handlePaymentFieldChange(idx, "paidDate", e.target.value)} />
+                          </Field>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+              {(!formTarget.paymentSchedule || formTarget.paymentSchedule.length === 0) && (
+                <div className="text-xs text-slate-400 text-center py-6 border border-dashed border-slate-200 rounded-xl flex flex-col items-center gap-2 bg-slate-50/50">
+                  <DollarSign size={18} className="text-slate-300" />
+                  No payments scheduled. Click Add Payment to create one.
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Action Footer */}
+          <div className="flex items-center justify-end gap-3 pt-4">
+            <button 
+              onClick={() => setFormTarget(null)}
+              className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-100 transition-all bg-white"
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={handleSave} 
+              disabled={!valid}
+              className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#0086D1] text-white font-bold text-sm hover:bg-[#006eb0] disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-md"
+            >
+              <Save size={15} />
+              {isNew ? "Add Plot" : "Save Changes"}
+            </button>
+          </div>
+
+        </div>
+      </div>
+    );
+  }
+
+  // ── RENDER LIST VIEW ──
   return (
     <div className="min-h-screen bg-slate-50 pb-20">
       <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-8 space-y-6">
@@ -577,7 +702,6 @@ export default function PlotManagementPage({ params }: { params: Promise<{ id: s
                       <td className="px-4 py-3 text-center hidden lg:table-cell">
                         {p.garage != null ? <span className="flex items-center justify-center gap-1 font-bold text-slate-700"><Car size={12} className="text-slate-400" />{p.garage}</span> : <span className="text-slate-300">—</span>}
                       </td>
-                      {/* Always-visible actions */}
                       <td className="px-3 py-3">
                         <div className="flex items-center gap-1.5">
                           <a href={`/property/${id}?plot=${p.plotNumber}`} title="View Detail"
@@ -609,9 +733,6 @@ export default function PlotManagementPage({ params }: { params: Promise<{ id: s
         )}
       </div>
 
-      {formTarget && (
-        <PlotFormModal initial={formTarget} isNew={isNew} onSave={handleSave} onClose={() => setFormTarget(null)} />
-      )}
       {deleteTarget && (
         <DeleteModal
           label={`Plot #${deleteTarget}`}

@@ -5,27 +5,32 @@ import { usePathname } from "next/navigation";
 import {
   Map, LayoutDashboard, List, ChevronLeft, ChevronRight,
   FileText, Users, Shield, Activity, LogOut, User as UserIcon,
+  MessageSquareWarning, Building2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ROLE_LABELS, ROLE_BADGE_COLORS, type AppRole } from "@/lib/roles";
 import { useRole } from "@/lib/RoleContext";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { subscribeUnreadCount } from "@/lib/useAttentionStore";
 
 interface SidebarProps { isOpen: boolean; onToggle: () => void; }
 
 const NAV_ITEMS = [
-  { href: "/dashboard", label: "Dashboard", subLabel: "Overview", icon: LayoutDashboard, permission: null },
-  { href: "/", label: "Site Map", subLabel: "Master Plan", icon: Map, permission: null },
-  { href: "/properties", label: "Properties", subLabel: "Directory", icon: List, permission: null },
-  { href: "/reports", label: "Reports", subLabel: "Analytics", icon: FileText, permission: "canAccessReports" },
-  { href: "/user-management", label: "Users", subLabel: "Management", icon: Users, permission: "canAccessUserManagement" },
-  { href: "/system-logs", label: "System Logs", subLabel: "Technical", icon: Activity, permission: "canAccessSystemLogs" },
+  { href: "/dashboard",          label: "Dashboard",  subLabel: "Overview",   icon: LayoutDashboard,      permission: null },
+  { href: "/",                   label: "Site Map",   subLabel: "Master Plan", icon: Map,                  permission: null },
+  { href: "/properties",         label: "Properties", subLabel: "Directory",  icon: List,                 permission: null },
+  { href: "/commercial-assets",  label: "Assets",     subLabel: "Commercial", icon: Building2,            permission: null },
+  { href: "/reports",            label: "Reports",    subLabel: "Analytics",  icon: FileText,             permission: "canAccessReports" },
+  { href: "/attention-remarks",  label: "Attention",  subLabel: "Notices",    icon: MessageSquareWarning, permission: null, badge: true },
+  { href: "/user-management",    label: "Users",      subLabel: "Management", icon: Users,                permission: "canAccessUserManagement" },
+  { href: "/system-logs",        label: "System Logs",subLabel: "Technical",  icon: Activity,             permission: "canAccessSystemLogs" },
 ] as const;
 
 export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
   const path = usePathname();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [attentionCount, setAttentionCount]       = useState(0);
 
   // Single shared auth fetch via RoleContext — no duplicate /api/auth/me calls
   const { user, permissions, isLoading } = useRole();
@@ -33,6 +38,29 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
   const role = user?.role as AppRole | null ?? null;
   const roleBadgeClass = role ? ROLE_BADGE_COLORS[role] : ROLE_BADGE_COLORS["user"];
   const roleLabel = role ? ROLE_LABELS[role] : "";
+
+  // Subscribe to global unread count (updated by the chat page + polling)
+  useEffect(() => {
+    const unsub = subscribeUnreadCount(setAttentionCount);
+    return () => { unsub(); };
+  }, []);
+
+  // Poll unread count when not on the attention page (every 30s)
+  useEffect(() => {
+    if (path === "/attention-remarks") return; // page handles this itself
+    async function fetchCount() {
+      try {
+        const res = await fetch("/api/attention-remarks/read");
+        if (res.ok) {
+          const data = await res.json();
+          setAttentionCount(data.count ?? 0);
+        }
+      } catch { /* silent */ }
+    }
+    fetchCount();
+    const interval = setInterval(fetchCount, 30_000);
+    return () => clearInterval(interval);
+  }, [path]);
 
   // Hide role-gated links until we know the actual role to avoid flash
   const visibleLinks = isLoading
@@ -59,10 +87,15 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
 
         {/* Nav links */}
         <nav className="flex-1 space-y-1 overflow-y-auto overflow-x-hidden">
-          {visibleLinks.map(({ href, label, subLabel, icon: Icon }) => {
+          {visibleLinks.map(({ href, label, subLabel, icon: Icon, ...rest }) => {
+            const hasBadge = "badge" in rest && rest.badge;
             const isActive = href === "/"
               ? path === "/" || path.startsWith("/property/")
-              : path === href;
+              : href === "/commercial-assets"
+                ? path === href || path.startsWith("/commercial-assets/")
+                : path === href;
+
+
             return (
               <Link key={href} href={href} title={!isOpen ? label : undefined}
                 className={cn(
@@ -72,12 +105,21 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
                     ? "bg-[#0086D1] text-white shadow-lg shadow-[#0086D1]/20"
                     : "hover:bg-[#0086D1]/5 text-[#0086D1]"
                 )}>
+                {/* Icon container */}
                 <div className={cn(
-                  "h-9 w-9 shrink-0 rounded-lg flex items-center justify-center transition-all duration-300",
+                  "h-9 w-9 shrink-0 rounded-lg flex items-center justify-center transition-all duration-300 relative",
                   isActive ? "bg-white/20" : "bg-gray-100 group-hover:bg-white group-hover:shadow-md"
                 )}>
                   <Icon className={cn("h-4 w-4", isActive ? "text-white" : "text-[#0086D1]")} />
+
+                  {/* Badge on icon (collapsed sidebar) */}
+                  {hasBadge && !isOpen && attentionCount > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 flex items-center justify-center text-[9px] font-black text-white bg-red-500 rounded-full px-1 ring-2 ring-white animate-pulse">
+                      {attentionCount > 99 ? "99+" : attentionCount}
+                    </span>
+                  )}
                 </div>
+
                 {isOpen && (
                   <div className="flex flex-col flex-1 overflow-hidden animate-in fade-in slide-in-from-left-2 duration-300">
                     <span className="text-[13px] font-black uppercase tracking-widest leading-tight whitespace-nowrap">{label}</span>
@@ -86,9 +128,18 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
                     </span>
                   </div>
                 )}
+
+                {/* Badge pill (expanded sidebar) */}
+                {hasBadge && isOpen && attentionCount > 0 && (
+                  <span className="ml-auto shrink-0 min-w-[20px] h-5 flex items-center justify-center text-[10px] font-black text-white bg-red-500 rounded-full px-1.5 shadow-sm">
+                    {attentionCount > 99 ? "99+" : attentionCount}
+                  </span>
+                )}
+
                 {isOpen && (
                   <ChevronRight className={cn(
                     "h-3 w-3 transition-all duration-300 shrink-0",
+                    hasBadge && attentionCount > 0 ? "hidden" : "",
                     isActive ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-2"
                   )} />
                 )}

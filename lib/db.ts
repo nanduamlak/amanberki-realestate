@@ -29,7 +29,7 @@ const pool = new Pool({
   ssl: getSslConfig(),
 });
 
-export async function query(text: string, params?: any[]) {
+export async function query(text: string, params?: unknown[]) {
   const client = await pool.connect();
   try {
     return await client.query(text, params);

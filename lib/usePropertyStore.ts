@@ -34,7 +34,9 @@ export function usePropertyStore() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    Promise.resolve().then(() => load());
+  }, [load]);
 
   // ── Add ───────────────────────────────────────────────────
   const add = useCallback(async (p: EditableProperty) => {

@@ -1,26 +1,41 @@
 "use client";
-import { useState, useMemo } from "react";
+import { formatPriceRange } from "@/lib/utils";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useRole } from "@/lib/RoleContext";
 import { useRouter } from "next/navigation";
 import {
-  usePropertyStore, STATUSES, ZONES, BLANK_PROPERTY, type EditableProperty,
+  usePropertyStore, ZONES, BLANK_PROPERTY, type EditableProperty,
 } from "@/lib/usePropertyStore";
-import type { PropertyStatus } from "@/lib/data/properties";
+
 import {
   Plus, Pencil, Trash2, Search, RotateCcw, ShieldAlert,
   ChevronUp, ChevronDown, ChevronLeft, ChevronRight, X, Save, Building2, Filter, Layers,
-  ExternalLink, MapPin, DollarSign,
+  ExternalLink, MapPin, DollarSign, TrendingUp, Check, AlertCircle, RefreshCw,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "@/lib/toast";
 
 /* ── helpers ─────────────────────────────────────────────────────────── */
-const STATUS_STYLE: Record<PropertyStatus, string> = {
-  available: "bg-emerald-100 text-emerald-700 border-emerald-200",
-  sold: "bg-rose-100    text-rose-700    border-rose-200",
-  reserved: "bg-amber-100   text-amber-700   border-amber-200",
-  "under-construction": "bg-violet-100 text-violet-700  border-violet-200",
-};
+// Occupancy filter buckets — derived from real plot data, NOT the legacy status field
+type OccupancyFilter = "all" | "full" | "partial" | "empty";
+
+/** Returns 0-100 sold percentage for a block */
+function soldPct(soldPlots: number, noOfPlots: number) {
+  if (!noOfPlots) return 0;
+  return Math.round((soldPlots / noOfPlots) * 100);
+}
+
+/** Which occupancy bucket does a block fall into? */
+function occupancyBucket(soldPlots: number, noOfPlots: number): OccupancyFilter {
+  const pct = soldPct(soldPlots, noOfPlots);
+  if (pct === 100) return "full";
+  if (pct === 0)   return "empty";
+  return "partial";
+}
+
+// These are only used in the add/edit form modal
+type PropertyStatus = "available" | "sold" | "reserved" | "under-construction";
+const STATUSES: PropertyStatus[] = ["available", "sold", "reserved", "under-construction"];
 const STATUS_LABEL: Record<PropertyStatus, string> = {
   available: "Available", sold: "Sold",
   reserved: "Reserved", "under-construction": "Under Construction",
@@ -217,7 +232,11 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
   );
 }
 
-type SortKey = "blockNumber" | "status" | "zone" | "price" | "area" | "noOfPlots";
+type SortKey = "blockNumber" | "soldPlots" | "zone" | "price" | "area" | "noOfPlots";
+
+function SortIcon({ k, sortKey, sortAsc }: { k: SortKey; sortKey: SortKey; sortAsc: boolean }) {
+  return sortKey === k ? (sortAsc ? <ChevronUp size={13} /> : <ChevronDown size={13} />) : <ChevronUp size={13} className="opacity-20" />;
+}
 
 /* ══ MAIN PAGE ══════════════════════════════════════════════════════════ */
 export default function PropertiesPage() {
@@ -229,10 +248,11 @@ export default function PropertiesPage() {
   const canManage = isSuperAdmin || isAdmin;
 
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<PropertyStatus | "all">("all");
+  const [occupancyFilter, setOccupancyFilter] = useState<OccupancyFilter>("all");
   const [zoneFilter, setZoneFilter] = useState<string>("all");
   const [priceFilter, setPriceFilter] = useState<"all" | "listed" | "unlisted">("all");
   const [sortKey, setSortKey] = useState<SortKey>("blockNumber");
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [sortAsc, setSortAsc] = useState(true);
   const [formTarget, setFormTarget] = useState<EditableProperty | null>(null);
   const [isNew, setIsNew] = useState(false);
@@ -242,10 +262,69 @@ export default function PropertiesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
 
+  /* ── Zone Price Management ── */
+  interface ZonePrice {
+    zone: string;
+    price: number;
+    priceMax: number | null;
+    blockCount: number;
+    lastUpdated: string;
+  }
+  const [zonePrices, setZonePrices]           = useState<ZonePrice[]>([]);
+  const [pricesReady, setPricesReady]         = useState(false);
+  const [editingZone, setEditingZone]         = useState<string | null>(null);
+  const [editPrice, setEditPrice]             = useState("");
+  const [editPriceMax, setEditPriceMax]       = useState("");
+  const [isRangeMode, setIsRangeMode]         = useState(false);
+  const [savingZone, setSavingZone]           = useState(false);
+
+  const fetchZonePrices = useCallback(async () => {
+    try {
+      const res = await fetch("/api/properties/zone-prices");
+      if (res.ok) { setZonePrices(await res.json()); setPricesReady(true); }
+    } catch { /* silent */ }
+  }, []);
+
+  useEffect(() => { fetchZonePrices(); }, [fetchZonePrices]);
+
+  const openZoneEdit = (zp: ZonePrice) => {
+    setEditingZone(zp.zone);
+    setEditPrice(zp.price > 0 ? String(zp.price / 1_000_000) : "");
+    setEditPriceMax(zp.priceMax ? String(zp.priceMax / 1_000_000) : "");
+    setIsRangeMode(!!zp.priceMax && zp.priceMax !== zp.price);
+  };
+
+  const saveZonePrice = async () => {
+    if (!editingZone) return;
+    const price = parseFloat(editPrice) * 1_000_000;
+    const priceMax = isRangeMode && editPriceMax ? parseFloat(editPriceMax) * 1_000_000 : null;
+    if (isNaN(price) || price <= 0) { toast.error("Enter a valid price"); return; }
+    if (isRangeMode && priceMax && priceMax <= price) { toast.error("Max price must be greater than min price"); return; }
+    setSavingZone(true);
+    try {
+      const res = await fetch("/api/properties/zone-prices", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ zone: editingZone, price, priceMax }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      const data = await res.json();
+      toast.success(`${editingZone} price updated — ${data.blocksUpdated} blocks affected`);
+      setEditingZone(null);
+      fetchZonePrices();
+      // Also refresh the main property list so table prices update
+      reset(); // triggers store refetch
+    } catch (e: unknown) {
+      toast.error((e as Error).message ?? "Failed to update price");
+    } finally {
+      setSavingZone(false);
+    }
+  };
+
   /* filtered + sorted list */
   const filtered = useMemo(() => {
     let data = [...list];
-    if (statusFilter !== "all") data = data.filter(p => p.status === statusFilter);
+    if (occupancyFilter !== "all") data = data.filter(p => occupancyBucket(p.soldPlots, p.noOfPlots) === occupancyFilter);
     if (zoneFilter !== "all") data = data.filter(p => p.zone === zoneFilter);
     if (priceFilter === "listed") data = data.filter(p => p.price > 0);
     if (priceFilter === "unlisted") data = data.filter(p => p.price === 0);
@@ -255,8 +334,7 @@ export default function PropertiesPage() {
         p.id.toLowerCase().includes(q) ||
         String(p.blockNumber).includes(q) ||
         p.zone.toLowerCase().includes(q) ||
-        p.primaryPlots.toLowerCase().includes(q) ||
-        p.status.toLowerCase().includes(q)
+        p.primaryPlots.toLowerCase().includes(q)
       );
     }
     data.sort((a, b) => {
@@ -266,7 +344,7 @@ export default function PropertiesPage() {
       return sortAsc ? cmp : -cmp;
     });
     return data;
-  }, [list, search, statusFilter, zoneFilter, priceFilter, sortKey, sortAsc]);
+  }, [list, search, occupancyFilter, zoneFilter, priceFilter, sortKey, sortAsc]);
 
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
   const paginatedItems = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
@@ -275,9 +353,6 @@ export default function PropertiesPage() {
     if (sortKey === key) setSortAsc(v => !v);
     else { setSortKey(key); setSortAsc(true); }
   };
-
-  const SortIcon = ({ k }: { k: SortKey }) =>
-    sortKey === k ? (sortAsc ? <ChevronUp size={13} /> : <ChevronDown size={13} />) : <ChevronUp size={13} className="opacity-20" />;
 
   const openAdd = () => { 
     setIsNew(true); 
@@ -311,14 +386,15 @@ export default function PropertiesPage() {
     toast.info("All blocks reset to default data");
   };
 
-  /* ── stats banner ── */
-  const counts = useMemo(() => ({
-    total: list.length,
-    available: list.filter(p => p.status === "available").length,
-    sold: list.filter(p => p.status === "sold").length,
-    reserved: list.filter(p => p.status === "reserved").length,
-    uc: list.filter(p => p.status === "under-construction").length,
-  }), [list]);
+  /* ── stats banner — plot-level aggregates ── */
+  const plotStats = useMemo(() => {
+    const totalPlots  = list.reduce((s, p) => s + p.noOfPlots, 0);
+    const soldPlots   = list.reduce((s, p) => s + p.soldPlots, 0);
+    const availPlots  = list.reduce((s, p) => s + p.activePlots, 0);
+    const fullBlocks  = list.filter(p => occupancyBucket(p.soldPlots, p.noOfPlots) === "full").length;
+    const emptyBlocks = list.filter(p => occupancyBucket(p.soldPlots, p.noOfPlots) === "empty").length;
+    return { totalBlocks: list.length, totalPlots, soldPlots, availPlots, fullBlocks, emptyBlocks };
+  }, [list]);
 
   return (
     <div className="min-h-screen bg-slate-50 pb-20">
@@ -350,21 +426,170 @@ export default function PropertiesPage() {
           )}
         </div>
 
-        {/* ── STAT CARDS ── */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        {/* ── STAT CARDS — plot-level ── */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {[
-            { label: "Total", value: counts.total, color: "text-slate-900 bg-white border-slate-200" },
-            { label: "Available", value: counts.available, color: "text-emerald-700 bg-emerald-50 border-emerald-200" },
-            { label: "Sold", value: counts.sold, color: "text-rose-700    bg-rose-50    border-rose-200" },
-            { label: "Reserved", value: counts.reserved, color: "text-amber-700   bg-amber-50   border-amber-200" },
-            { label: "Under Const.", value: counts.uc, color: "text-violet-700  bg-violet-50  border-violet-200" },
+            { label: "Total Blocks",   value: plotStats.totalBlocks,  sub: "blocks",  color: "text-slate-900  bg-white        border-slate-200"  },
+            { label: "Total Plots",    value: plotStats.totalPlots,   sub: "plots",   color: "text-slate-700  bg-slate-50     border-slate-200"  },
+            { label: "Sold Plots",     value: plotStats.soldPlots,    sub: "sold",    color: "text-rose-700   bg-rose-50      border-rose-200"   },
+            { label: "Avail. Plots",   value: plotStats.availPlots,   sub: "avail",   color: "text-emerald-700 bg-emerald-50  border-emerald-200"},
+            { label: "Fully Sold",     value: plotStats.fullBlocks,   sub: "blocks",  color: "text-rose-800   bg-rose-100     border-rose-300"   },
+            { label: "Empty Blocks",   value: plotStats.emptyBlocks,  sub: "blocks",  color: "text-emerald-800 bg-emerald-100 border-emerald-300"},
           ].map(s => (
             <div key={s.label} className={`rounded-xl border px-4 py-3 ${s.color}`}>
-              <p className="text-[10px] font-bold uppercase tracking-widest opacity-70">{s.label}</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest opacity-60">{s.label}</p>
               <p className="text-2xl font-black mt-0.5">{s.value}</p>
+              <p className="text-[10px] opacity-50 font-semibold">{s.sub}</p>
             </div>
           ))}
         </div>
+
+        {/* ── ZONE PRICE MANAGEMENT (admin only) ── */}
+        {canManage && (
+          <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white">
+              <div className="flex items-center gap-2.5">
+                <div className="h-7 w-7 rounded-lg bg-[#0086D1]/10 flex items-center justify-center">
+                  <TrendingUp size={14} className="text-[#0086D1]" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900">Zone Price Management</h3>
+                  <p className="text-[10px] text-slate-400 font-medium">Prices apply to all blocks within a zone</p>
+                </div>
+              </div>
+              <button
+                onClick={fetchZonePrices}
+                className="h-7 w-7 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors"
+                title="Refresh prices"
+              >
+                <RefreshCw size={13} />
+              </button>
+            </div>
+
+            {/* Zone price cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-0 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
+              {!pricesReady ? (
+                [1, 2].map(i => (
+                  <div key={i} className="p-5 animate-pulse">
+                    <div className="h-3 bg-slate-100 rounded w-24 mb-3" />
+                    <div className="h-8 bg-slate-100 rounded w-36" />
+                  </div>
+                ))
+              ) : (
+                zonePrices.map(zp => (
+                  <div key={zp.zone} className="p-5">
+                    {editingZone === zp.zone ? (
+                      /* ── Edit form ── */
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-black text-slate-700 uppercase tracking-wider">{zp.zone}</span>
+                          <button onClick={() => setEditingZone(null)} className="text-slate-400 hover:text-slate-600">
+                            <X size={13} />
+                          </button>
+                        </div>
+
+                        {/* Range toggle */}
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                          <div
+                            onClick={() => setIsRangeMode(v => !v)}
+                            className={`w-8 h-4 rounded-full transition-colors relative ${
+                              isRangeMode ? "bg-[#0086D1]" : "bg-slate-200"
+                            }`}
+                          >
+                            <div className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-all ${
+                              isRangeMode ? "left-4" : "left-0.5"
+                            }`} />
+                          </div>
+                          <span className="text-[11px] font-semibold text-slate-600">Price range (min – max)</span>
+                        </label>
+
+                        <div className={`grid gap-2 ${isRangeMode ? "grid-cols-2" : "grid-cols-1"}`}>
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                              {isRangeMode ? "Min Price (M ETB)" : "Price (M ETB)"}
+                            </label>
+                            <input
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              value={editPrice}
+                              onChange={e => setEditPrice(e.target.value)}
+                              placeholder="e.g. 11.2"
+                              className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 bg-slate-50 font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0086D1]/20 focus:border-[#0086D1]"
+                            />
+                          </div>
+                          {isRangeMode && (
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Max Price (M ETB)</label>
+                              <input
+                                type="number"
+                                step="0.1"
+                                min="0"
+                                value={editPriceMax}
+                                onChange={e => setEditPriceMax(e.target.value)}
+                                placeholder="e.g. 7.5"
+                                className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 bg-slate-50 font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0086D1]/20 focus:border-[#0086D1]"
+                              />
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2 pt-1">
+                          <button
+                            onClick={saveZonePrice}
+                            disabled={savingZone || !editPrice}
+                            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#0086D1] text-white text-xs font-black hover:bg-[#006daa] disabled:bg-slate-200 disabled:text-slate-400 transition-colors"
+                          >
+                            {savingZone ? (
+                              <><RefreshCw size={11} className="animate-spin" /> Saving…</>
+                            ) : (
+                              <><Check size={11} /> Save Changes</>
+                            )}
+                          </button>
+                          <button onClick={() => setEditingZone(null)} className="text-xs font-bold text-slate-500 hover:text-slate-700 px-2 py-2">
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      /* ── Display ── */
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{zp.zone}</span>
+                            <span className="text-[9px] bg-slate-100 text-slate-500 font-bold px-1.5 py-0.5 rounded-full">
+                              {zp.blockCount} blocks
+                            </span>
+                          </div>
+                          <div className="text-2xl font-black text-slate-900 leading-none">
+                            {zp.price > 0 ? formatPriceRange(zp.price, zp.priceMax) : (
+                              <span className="text-slate-300 text-base font-bold">Not set</span>
+                            )}
+                          </div>
+                          {zp.lastUpdated && (
+                            <p className="text-[9px] text-slate-400 mt-1.5 font-medium">
+                              Last updated: {new Date(zp.lastUpdated).toLocaleDateString("en-GB", {
+                                day: "2-digit", month: "short", year: "numeric",
+                                hour: "2-digit", minute: "2-digit"
+                              })}
+                            </p>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => openZoneEdit(zp)}
+                          className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-[11px] font-bold text-slate-600 hover:bg-[#0086D1] hover:text-white hover:border-[#0086D1] transition-all"
+                        >
+                          <Pencil size={11} /> Update
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
 
         {/* ── TOOLBAR ── */}
         <div className="flex flex-wrap gap-2 p-3 bg-white rounded-2xl border border-slate-200/60 shadow-sm items-center">
@@ -378,13 +603,15 @@ export default function PropertiesPage() {
               className="w-full pl-9 pr-3 py-2.5 bg-slate-50 rounded-xl text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0086D1]/20 transition-all border border-transparent focus:border-[#0086D1]/30"
             />
           </div>
-          {/* Status */}
+          {/* Occupancy filter */}
           <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-2 rounded-xl border border-slate-100">
             <Filter size={12} className="text-slate-400" />
-            <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value as PropertyStatus | "all"); setCurrentPage(1); }}
+            <select value={occupancyFilter} onChange={e => { setOccupancyFilter(e.target.value as OccupancyFilter); setCurrentPage(1); }}
               className="bg-transparent text-sm font-bold text-slate-700 focus:outline-none cursor-pointer">
-              <option value="all">All Statuses</option>
-              {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
+              <option value="all">All Occupancy</option>
+              <option value="full">Fully Sold</option>
+              <option value="partial">Partially Sold</option>
+              <option value="empty">No Sales Yet</option>
             </select>
           </div>
           {/* Zone */}
@@ -407,8 +634,8 @@ export default function PropertiesPage() {
             </select>
           </div>
           {/* Clear filters */}
-          {(statusFilter !== "all" || zoneFilter !== "all" || priceFilter !== "all" || search) && (
-            <button onClick={() => { setSearch(""); setStatusFilter("all"); setZoneFilter("all"); setPriceFilter("all"); setCurrentPage(1); }}
+          {(occupancyFilter !== "all" || zoneFilter !== "all" || priceFilter !== "all" || search) && (
+            <button onClick={() => { setSearch(""); setOccupancyFilter("all"); setZoneFilter("all"); setPriceFilter("all"); setCurrentPage(1); }}
               className="flex items-center gap-1 px-3 py-2 rounded-xl bg-rose-50 text-rose-600 border border-rose-100 font-bold text-xs hover:bg-rose-100 transition-all">
               <X size={11} /> Clear
             </button>
@@ -424,30 +651,30 @@ export default function PropertiesPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm border-collapse">
                 <colgroup>
-                  <col style={{ width: "48px" }} /><col style={{ width: "108px" }} /><col style={{ width: "150px" }} /><col style={{ width: "140px" }} /><col style={{ width: "80px" }} /><col style={{ width: "110px" }} /><col style={{ width: "110px" }} /><col />
+                  <col style={{ width: "48px" }} /><col style={{ width: "108px" }} /><col style={{ width: "150px" }} /><col style={{ width: "200px" }} /><col style={{ width: "80px" }} /><col style={{ width: "110px" }} /><col style={{ width: "110px" }} /><col />
                 </colgroup>
                 <thead>
                   <tr className="bg-slate-50 border-b-2 border-slate-200">
                     <th onClick={() => toggleSort("blockNumber")} className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-widest text-slate-400 cursor-pointer hover:text-slate-700 select-none whitespace-nowrap">
-                      <span className="flex items-center gap-1">#<SortIcon k="blockNumber" /></span>
+                      <span className="flex items-center gap-1">#<SortIcon k="blockNumber" sortKey={sortKey} sortAsc={sortAsc} /></span>
                     </th>
                     <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-widest text-slate-400 whitespace-nowrap">
                       Block ID
                     </th>
                     <th onClick={() => toggleSort("zone")} className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-widest text-slate-400 cursor-pointer hover:text-slate-700 select-none whitespace-nowrap">
-                      <span className="flex items-center gap-1">Zone<SortIcon k="zone" /></span>
+                      <span className="flex items-center gap-1">Zone<SortIcon k="zone" sortKey={sortKey} sortAsc={sortAsc} /></span>
                     </th>
-                    <th onClick={() => toggleSort("status")} className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-widest text-slate-400 cursor-pointer hover:text-slate-700 select-none whitespace-nowrap">
-                      <span className="flex items-center gap-1">Status<SortIcon k="status" /></span>
+                    <th onClick={() => toggleSort("soldPlots")} className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-widest text-slate-400 cursor-pointer hover:text-slate-700 select-none whitespace-nowrap">
+                      <span className="flex items-center gap-1">Plot Occupancy<SortIcon k="soldPlots" sortKey={sortKey} sortAsc={sortAsc} /></span>
                     </th>
                     <th onClick={() => toggleSort("noOfPlots")} className="px-4 py-3 text-right text-[10px] font-black uppercase tracking-widest text-slate-400 cursor-pointer hover:text-slate-700 select-none whitespace-nowrap">
-                      <span className="flex items-center justify-end gap-1">Plots<SortIcon k="noOfPlots" /></span>
+                      <span className="flex items-center justify-end gap-1">Plots<SortIcon k="noOfPlots" sortKey={sortKey} sortAsc={sortAsc} /></span>
                     </th>
                     <th onClick={() => toggleSort("area")} className="px-4 py-3 text-right text-[10px] font-black uppercase tracking-widest text-slate-400 cursor-pointer hover:text-slate-700 select-none whitespace-nowrap">
-                      <span className="flex items-center justify-end gap-1">Area m²<SortIcon k="area" /></span>
+                      <span className="flex items-center justify-end gap-1">Area m²<SortIcon k="area" sortKey={sortKey} sortAsc={sortAsc} /></span>
                     </th>
                     <th onClick={() => toggleSort("price")} className="px-4 py-3 text-right text-[10px] font-black uppercase tracking-widest text-slate-400 cursor-pointer hover:text-slate-700 select-none whitespace-nowrap">
-                      <span className="flex items-center justify-end gap-1">Price<SortIcon k="price" /></span>
+                      <span className="flex items-center justify-end gap-1">Price<SortIcon k="price" sortKey={sortKey} sortAsc={sortAsc} /></span>
                     </th>
                     <th className="px-4 py-3 text-right text-[10px] font-black uppercase tracking-widest text-slate-400 whitespace-nowrap">Actions</th>
                   </tr>
@@ -458,7 +685,7 @@ export default function PropertiesPage() {
                       <div className="flex flex-col items-center gap-3">
                         <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center"><Building2 size={24} className="text-slate-300" /></div>
                         <p className="font-bold text-slate-500">No properties match your filters</p>
-                        <button onClick={() => { setSearch(""); setStatusFilter("all"); setZoneFilter("all"); setPriceFilter("all"); setCurrentPage(1); }}
+                        <button onClick={() => { setSearch(""); setOccupancyFilter("all"); setZoneFilter("all"); setPriceFilter("all"); setCurrentPage(1); }}
                           className="text-xs font-bold text-[#0086D1] hover:underline">Clear all filters</button>
                       </div>
                     </td></tr>
@@ -467,7 +694,7 @@ export default function PropertiesPage() {
                     <tr key={p.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
                       {/* # chip */}
                       <td className="px-4 py-3.5 align-middle">
-                        <div className="w-8 h-8 rounded-lg bg-[#0086D1]/10 flex items-center justify-center font-black text-[#0086D1] text-sm">{p.blockNumber}</div>
+                        <div className="w-8 h-8 rounded-lg bg-[#0086D1]/10 flex items-center justify-center font-black text-[#0086D1] text-sm">{(p as any).blockLabel ?? p.blockNumber}</div>
                       </td>
                       {/* Block ID */}
                       <td className="px-4 py-3.5 align-middle whitespace-nowrap">
@@ -479,11 +706,9 @@ export default function PropertiesPage() {
                           <MapPin size={11} className="text-slate-400 shrink-0" />{p.zone}
                         </div>
                       </td>
-                      {/* Status */}
+                      {/* Plot Occupancy Bar */}
                       <td className="px-4 py-3.5 align-middle">
-                        <span className={`inline-flex px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${STATUS_STYLE[p.status]}`}>
-                          {STATUS_LABEL[p.status]}
-                        </span>
+                        <PlotRatioBar soldPlots={p.soldPlots} totalPlots={p.noOfPlots} activePlots={p.activePlots} />
                       </td>
                       {/* Plots */}
                       <td className="px-4 py-3.5 align-middle text-right whitespace-nowrap">
@@ -498,7 +723,7 @@ export default function PropertiesPage() {
                       {/* Price */}
                       <td className="px-4 py-3.5 align-middle text-right whitespace-nowrap">
                         {p.price > 0
-                          ? <span className="font-black text-[#0086D1]">${p.price.toLocaleString()}</span>
+                          ? <span className="font-black text-[#0086D1]">{formatPriceRange(p.price, p.priceMax)}</span>
                           : <span className="text-slate-300 font-medium text-xs">Unlisted</span>}
                       </td>
                       {/* Actions */}
@@ -572,8 +797,8 @@ export default function PropertiesPage() {
               )}
 
               <span className="hidden md:flex text-xs text-slate-400 font-medium items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />
-                Demo — data stored locally
+                <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
+                Live — data from PostgreSQL
               </span>
             </div>
           </div>
@@ -609,6 +834,55 @@ export default function PropertiesPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/* ── PlotRatioBar ──────────────────────────────────────────────────────── */
+function PlotRatioBar({
+  soldPlots,
+  totalPlots,
+  activePlots,
+}: {
+  soldPlots: number;
+  totalPlots: number;
+  activePlots: number;
+}) {
+  if (!totalPlots) {
+    return <span className="text-[11px] text-slate-300 font-medium italic">No plots</span>;
+  }
+
+  const pct = Math.round((soldPlots / totalPlots) * 100);
+
+  return (
+    <div className="flex flex-col gap-1 min-w-[160px]">
+      {/* Numbers row */}
+      <div className="flex items-center justify-between text-[11px] font-bold">
+        <span className="text-rose-600 flex items-center gap-1">
+          <span className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block shrink-0" />
+          {soldPlots} sold
+        </span>
+        <span className="text-slate-400 font-semibold">{pct}%</span>
+        <span className="text-emerald-600 flex items-center gap-1">
+          {activePlots} avail
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block shrink-0" />
+        </span>
+      </div>
+      {/* Progress bar */}
+      <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden flex">
+        <div
+          className="h-full bg-rose-400 transition-all duration-500 rounded-l-full"
+          style={{ width: `${pct}%` }}
+        />
+        <div
+          className="h-full bg-emerald-400 transition-all duration-500 rounded-r-full"
+          style={{ width: `${100 - pct}%` }}
+        />
+      </div>
+      {/* Total label */}
+      <div className="text-[10px] text-slate-400 font-semibold text-center">
+        {soldPlots} / {totalPlots} plots sold
+      </div>
     </div>
   );
 }

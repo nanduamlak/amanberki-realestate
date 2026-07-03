@@ -124,20 +124,28 @@ async function migrate() {
     // ─────────────────────────────────────────────────────────────
     await client.query(`
       CREATE TABLE IF NOT EXISTS payment_records (
-        id              SERIAL       PRIMARY KEY,
-        payment_ref     VARCHAR(50)  NOT NULL,             -- the app-level id e.g. "pay-001"
-        plot_detail_id  INTEGER      NOT NULL REFERENCES plot_details(id) ON DELETE CASCADE,
-        description     VARCHAR(255) NOT NULL DEFAULT '',
-        amount          NUMERIC(14,2) NOT NULL DEFAULT 0,
-        currency        VARCHAR(5)   NOT NULL DEFAULT 'ETB' CHECK (currency IN ('ETB','USD')),
-        due_date        DATE,
-        paid_date       DATE,
-        status          VARCHAR(20)  NOT NULL DEFAULT 'pending'
-                          CHECK (status IN ('pending','paid','overdue','waived')),
-        notified        BOOLEAN      NOT NULL DEFAULT FALSE,
-        notes           TEXT,
-        created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-        updated_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+        id               SERIAL       PRIMARY KEY,
+        payment_ref      VARCHAR(50)  NOT NULL,             -- the app-level id e.g. "pay-001"
+        plot_detail_id   INTEGER      NOT NULL REFERENCES plot_details(id) ON DELETE CASCADE,
+        description      VARCHAR(255) NOT NULL DEFAULT '',
+        amount           NUMERIC(14,2) NOT NULL DEFAULT 0,
+        currency         VARCHAR(5)   NOT NULL DEFAULT 'ETB' CHECK (currency IN ('ETB','USD')),
+        due_date         DATE,
+        paid_date        DATE,
+        status           VARCHAR(20)  NOT NULL DEFAULT 'pending'
+                           CHECK (status IN ('pending','paid','overdue','waived')),
+        total_amount     NUMERIC(14,2) NOT NULL DEFAULT 0,
+        paid_amount      NUMERIC(14,2) NOT NULL DEFAULT 0,
+        remaining_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+        term_type        VARCHAR(15)  NOT NULL DEFAULT 'one_term',
+        amount_term2     NUMERIC(14,2) NOT NULL DEFAULT 0,
+        due_date_term2   DATE,
+        paid_date_term2  DATE,
+        status_term2     VARCHAR(20)  NOT NULL DEFAULT 'pending',
+        notified         BOOLEAN      NOT NULL DEFAULT FALSE,
+        notes            TEXT,
+        created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+        updated_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW()
       );
     `);
     console.log("[Migrate] ✅  payment_records table ready.");
