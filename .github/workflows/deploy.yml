@@ -72,36 +72,74 @@ jobs:
       - name: Add server to known hosts
         run: |
           mkdir -p ~/.ssh
+          # Add SSH keepalive settings to prevent timeout during long operations
+          cat >> ~/.ssh/config << 'EOF'
+          Host *
+            ServerAliveInterval 30
+            ServerAliveCountMax 10
+            ConnectTimeout 60
+          EOF
           ssh-keyscan -p "${{ secrets.CPANEL_SSH_PORT }}" -H "${{ secrets.CPANEL_SSH_HOST }}" >> ~/.ssh/known_hosts
 
       - name: Create Tarball Archive
         run: |
-          # Compress the deploy folder into a single tarball
           tar -czf deploy.tar.gz -C deploy-package .
 
-      - name: Upload Tarball to cPanel (High-Speed SCP)
+      - name: Write remote deploy script
         run: |
-          # SCP copies the single file in 1-2 seconds
-          scp -P "${{ secrets.CPANEL_SSH_PORT }}" deploy.tar.gz "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}:${{ secrets.CPANEL_APP_ROOT }}/"
+          # Write the deploy script to a file (avoids all shell escaping issues)
+          cat > deploy-remote.sh << 'SCRIPT'
+          #!/bin/bash
+          set -e
+          APP_ROOT="$1"
 
-      - name: Extract Tarball on cPanel Server (Zero-Downtime Extract)
+          cd "$APP_ROOT"
+
+          # Kill any old node processes in this directory
+          for pid in $(pgrep -u "$(whoami)" -f node 2>/dev/null); do
+            cwd=$(readlink -f /proc/$pid/cwd 2>/dev/null || true)
+            if [ "$cwd" = "$APP_ROOT" ]; then
+              echo "Terminating old node process: $pid"
+              kill -9 "$pid" 2>/dev/null || true
+            fi
+          done
+
+          # Extract new build
+          echo "Extracting deploy.tar.gz..."
+          tar -xzf deploy.tar.gz
+          rm -f deploy.tar.gz
+
+          # Touch restart.txt to trigger Passenger hot reload
+          mkdir -p tmp
+          touch tmp/restart.txt
+
+          echo "Deploy complete!"
+          SCRIPT
+          chmod +x deploy-remote.sh
+
+      - name: Upload Tarball and Deploy Script to cPanel
         run: |
-          # Find and kill any old node processes running inside this app directory, then extract
-          ssh -p "${{ secrets.CPANEL_SSH_PORT }}" "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}" "
-            cd '${{ secrets.CPANEL_APP_ROOT }}'
-            
-            for pid in \$(pgrep -u '${{ secrets.CPANEL_SSH_USER }}' -f node); do
-              if [ \"\$(readlink -f /proc/\$pid/cwd 2>/dev/null)\" = \"${{ secrets.CPANEL_APP_ROOT }}\" ]; then
-                echo \"Terminating old node process: \$pid\"
-                kill -9 \"\$pid\" 2>/dev/null || true
-              fi
-            done
+          scp -P "${{ secrets.CPANEL_SSH_PORT }}" \
+            deploy.tar.gz \
+            deploy-remote.sh \
+            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}:${{ secrets.CPANEL_APP_ROOT }}/"
 
-            tar -xzf deploy.tar.gz
-            rm deploy.tar.gz
-          "
-
-      - name: Restart Passenger app (Zero-Downtime Hot Restart)
+      - name: Extract and Deploy on cPanel Server
         run: |
-          ssh -p "${{ secrets.CPANEL_SSH_PORT }}" "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}" \
-            "mkdir -p '${{ secrets.CPANEL_APP_ROOT }}/tmp' && touch '${{ secrets.CPANEL_APP_ROOT }}/tmp/restart.txt'"
+          ssh \
+            -o ConnectTimeout=60 \
+            -o ServerAliveInterval=30 \
+            -o ServerAliveCountMax=10 \
+            -p "${{ secrets.CPANEL_SSH_PORT }}" \
+            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}" \
+            "bash ${{ secrets.CPANEL_APP_ROOT }}/deploy-remote.sh ${{ secrets.CPANEL_APP_ROOT }}"
+
+      - name: Cleanup remote deploy script
+        if: always()
+        run: |
+          ssh \
+            -o ConnectTimeout=30 \
+            -o ServerAliveInterval=15 \
+            -p "${{ secrets.CPANEL_SSH_PORT }}" \
+            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}" \
+            "rm -f ${{ secrets.CPANEL_APP_ROOT }}/deploy-remote.sh" || true
