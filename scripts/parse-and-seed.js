@@ -17,7 +17,7 @@ if (!process.env.DATABASE_URL) {
 }
 
 // ─── Excel Parsing ────────────────────────────────────────────────────────────
-const filePath = path.join(__dirname, "..", "Tulu Dimtu Inventory.xlsx");
+const filePath = path.join(__dirname, "..", "Tulu Dimtu Inventory Final Updated.xlsx");
 const workbook = xlsx.readFile(filePath);
 const sheet = workbook.Sheets["Sheet2"];
 const rows = xlsx.utils.sheet_to_json(sheet, { header: 1, defval: null });
@@ -130,7 +130,10 @@ function parseInventory() {
     // Add plot detail
     if (col1 !== null && col1 !== undefined) {
       const plotNum = String(col1).trim();
-      const plotSize = typeof col2 === "number" ? col2 : (parseFloat(col2) || 0);
+      // Store the raw size string (e.g. "203+71") for display;
+      // parse only the base number (before '+') for area calculations.
+      const plotSizeRaw = col2 !== null && col2 !== undefined ? String(col2).trim() : "0";
+      const plotSizeNum = parseFloat(plotSizeRaw.split("+")[0]) || 0;
       const purchaserName = col4 ? String(col4).trim() : "";
       const titleDeedsStatus = col5 ? String(col5).trim() : "";
       const contractor = col6 ? String(col6).trim() : "";
@@ -142,7 +145,8 @@ function parseInventory() {
       if (block) {
         block.plots.push({
           plotNumber: plotNum,
-          plotSize,
+          plotSize: plotSizeRaw,   // raw string: "203+71" kept as-is
+          plotSizeNum,             // numeric base for area calculations
           builtArea,
           purchaserName,
           titleDeedsStatus,
@@ -167,7 +171,8 @@ function computeBlockFields(blockId, plots) {
   };
 
   const noOfPlots = plots.length;
-  const totalArea = plots.reduce((sum, p) => sum + (p.plotSize || 0), 0);
+  // Use plotSizeNum (base number before '+') for area totals
+  const totalArea = plots.reduce((sum, p) => sum + (p.plotSizeNum || 0), 0);
 
   const bufferPlots = plots.filter(p => (p.purchaserName || "").toLowerCase().includes("(b*)"));
   const primaryPlots = plots.filter(p => !(p.purchaserName || "").toLowerCase().includes("(b*)"));
@@ -194,11 +199,12 @@ function computeBlockFields(blockId, plots) {
   });
   if (hasUnderConstruction && status !== "available") status = "under-construction";
 
-  // Plot sizes
-  const plotSizes = [...new Set(plots.map(p => p.plotSize).filter(s => s > 0))];
-  const plotSizeStr = plotSizes.length === 1 
-    ? String(plotSizes[0]) 
-    : (plotSizes.length > 0 ? `${Math.min(...plotSizes)}-${Math.max(...plotSizes)}` : "TBD");
+  // Plot size range (use numeric base values for min/max computation)
+  const plotSizeNums = plots.map(p => p.plotSizeNum || 0).filter(s => s > 0);
+  const uniqueSizes = [...new Set(plotSizeNums)];
+  const plotSizeStr = uniqueSizes.length === 1
+    ? String(uniqueSizes[0])
+    : (uniqueSizes.length > 0 ? `${Math.min(...uniqueSizes)}-${Math.max(...uniqueSizes)}` : "TBD");
 
   // Primary plot range
   const primaryNums = primaryPlots.map(p => p.plotNumber).filter(n => !isNaN(n));
@@ -298,7 +304,7 @@ async function insertPlots(client, blockId, plots) {
       [
         blockId,
         plot.plotNumber,
-        plot.plotSize || 0,
+        plot.plotSize || "0",   // raw string e.g. "203+71"
         plot.builtArea || "",
         plot.purchaserName || "",
         plot.titleDeedsStatus || "",

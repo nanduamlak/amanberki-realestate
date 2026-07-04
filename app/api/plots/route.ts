@@ -35,7 +35,7 @@ export async function GET() {
       blockLabel: r.block_label ?? null,   // "46A" / "46B" or null (use blockNumber)
       zone: r.zone,
       plotNumber: r.plot_number,
-      plotSize: Number(r.plot_size),
+      plotSize: r.plot_size ?? "",
       builtArea: r.built_area,
       purchaserName: r.purchaser_name,
       titleDeedsStatus: r.title_deeds_status,

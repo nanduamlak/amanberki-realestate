@@ -11,8 +11,10 @@ function validatePlot(p: Record<string, unknown>): string | null {
   if (!p.plotNumber || typeof p.plotNumber !== "string" || !p.plotNumber.trim()) {
     return "plotNumber is required and must be a non-empty string";
   }
-  if (p.plotSize !== undefined && (isNaN(Number(p.plotSize)) || Number(p.plotSize) < 0)) {
-    return "plotSize must be a non-negative number";
+  // plotSize is now stored as VARCHAR (may be "203+71") — only reject if clearly invalid
+  if (p.plotSize !== undefined && p.plotSize !== null && p.plotSize !== "") {
+    const base = parseFloat(String(p.plotSize).split("+")[0]);
+    if (isNaN(base) || base < 0) return "plotSize must be a non-negative number or expression like '203+71'";
   }
   if (p.floors    !== undefined && p.floors    !== null && (!Number.isInteger(Number(p.floors))    || Number(p.floors)    < 0)) return "floors must be a non-negative integer";
   if (p.bedrooms  !== undefined && p.bedrooms  !== null && (!Number.isInteger(Number(p.bedrooms))  || Number(p.bedrooms)  < 0)) return "bedrooms must be a non-negative integer";
@@ -41,7 +43,7 @@ function toPlot(row: Record<string, unknown>) {
     id:                 row.id,
     blockId:            row.block_id,
     plotNumber:         row.plot_number,
-    plotSize:           Number(row.plot_size),
+    plotSize:           String(row.plot_size ?? ""),
     builtArea:          row.built_area,
     purchaserName:      row.purchaser_name,
     titleDeedsStatus:   row.title_deeds_status,
@@ -142,7 +144,7 @@ export async function POST(req: NextRequest, { params }: Ctx) {
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
        RETURNING id`,
       [
-        id, p.plotNumber, p.plotSize ?? 0, p.builtArea ?? "",
+        id, p.plotNumber, p.plotSize ?? "0", p.builtArea ?? "",
         p.purchaserName ?? "", p.titleDeedsStatus ?? "", p.constructionStatus ?? "",
         p.remark ?? "", p.houseType ?? null, p.floors ?? null,
         p.bedrooms ?? null, p.bathrooms ?? null, p.livingRooms ?? null,

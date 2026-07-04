@@ -2,6 +2,7 @@
 import React, { useState, useMemo, use } from "react";
 import { useRole } from "@/lib/RoleContext";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { usePlotStore, BLANK_PLOT, HOUSE_TYPES, DEED_STATUSES, CONSTRUCTION_STATUSES, type PlotDetail } from "@/lib/usePlotStore";
 import { usePropertyStore } from "@/lib/usePropertyStore";
 import type { PaymentRecord } from "@/lib/data/properties";
@@ -175,7 +176,7 @@ export default function PlotManagementPage({ params }: { params: Promise<{ id: s
     s("paymentSchedule", ps);
   };
 
-  const valid = formTarget ? (formTarget.plotNumber.trim() !== "" && formTarget.plotSize > 0) : false;
+  const valid = formTarget ? (formTarget.plotNumber.trim() !== "" && parseFloat(String(formTarget.plotSize).split("+")[0]) > 0) : false;
 
   if (!isLoading && !isSuperAdmin && !isAdmin) {
     return (
@@ -647,22 +648,19 @@ export default function PlotManagementPage({ params }: { params: Promise<{ id: s
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                    <th className="px-4 py-3 text-left w-14">Plot #</th>
+                    <th className="px-4 py-3 text-left w-14">Plot ID</th>
                     <th className="px-4 py-3 text-right w-20">Size m²</th>
                     <th className="px-4 py-3 text-right w-24">Built Area</th>
                     <th className="px-4 py-3 text-left">Purchaser</th>
-                    <th className="px-4 py-3 text-left">Title Deed</th>
-                    <th className="px-4 py-3 text-left">Construction</th>
-                    <th className="px-4 py-3 text-left hidden lg:table-cell">House Type</th>
-                    <th className="px-4 py-3 text-center hidden lg:table-cell">Beds</th>
-                    <th className="px-4 py-3 text-center hidden lg:table-cell">Baths</th>
-                    <th className="px-4 py-3 text-center hidden lg:table-cell">Garage</th>
+                    <th className="px-4 py-3 text-left">Contractor</th>
+                    <th className="px-4 py-3 text-left">Construction Status</th>
+                    <th className="px-4 py-3 text-left">Title Deeds Status</th>
                     <th className="px-4 py-3 w-20" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {filtered.length === 0 && (
-                    <tr><td colSpan={11} className="py-16 text-center">
+                    <tr><td colSpan={8} className="py-16 text-center">
                       <div className="flex flex-col items-center gap-3">
                         <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center"><Home size={20} className="text-slate-300" /></div>
                         <p className="font-bold text-slate-500">{plots.length === 0 ? "No plots yet" : "No plots match your filters"}</p>
@@ -676,9 +674,11 @@ export default function PlotManagementPage({ params }: { params: Promise<{ id: s
                       <td className="px-4 py-3">
                         <div className="w-9 h-9 rounded-xl bg-[#0086D1]/10 flex items-center justify-center font-black text-[#0086D1]">{p.plotNumber}</div>
                       </td>
-                      <td className="px-4 py-3 text-right font-bold text-slate-700">{p.plotSize.toLocaleString()} <span className="text-[10px] text-slate-400">m²</span></td>
+                      <td className="px-4 py-3 text-right font-bold text-slate-700">{p.plotSize || "—"} <span className="text-[10px] text-slate-400">m²</span></td>
                       <td className="px-4 py-3 text-right text-slate-500 font-medium">{p.builtArea || <span className="text-slate-300">—</span>}</td>
                       <td className="px-4 py-3 font-semibold text-slate-800 max-w-[160px] truncate">{p.purchaserName || <span className="text-slate-300 italic text-xs">Unassigned</span>}</td>
+                      <td className="px-4 py-3 text-slate-600 font-medium max-w-[140px] truncate">{p.contractorName || <span className="text-slate-300">—</span>}</td>
+                      <td className="px-4 py-3 text-slate-600 font-medium whitespace-nowrap text-sm">{p.constructionStatus || <span className="text-slate-300">—</span>}</td>
                       <td className="px-4 py-3">
                         {p.titleDeedsStatus ? (
                           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${
@@ -689,25 +689,12 @@ export default function PlotManagementPage({ params }: { params: Promise<{ id: s
                           </span>
                         ) : <span className="text-slate-300">—</span>}
                       </td>
-                      <td className="px-4 py-3 text-slate-600 font-medium whitespace-nowrap text-sm">{p.constructionStatus || <span className="text-slate-300">—</span>}</td>
-                      <td className="px-4 py-3 hidden lg:table-cell">
-                        {p.houseType ? <span className="flex items-center gap-1 text-slate-600 font-semibold"><Home size={13} className="text-[#0086D1]" />{p.houseType}</span> : <span className="text-slate-300">—</span>}
-                      </td>
-                      <td className="px-4 py-3 text-center hidden lg:table-cell">
-                        {p.bedrooms != null ? <span className="flex items-center justify-center gap-1 font-bold text-slate-700"><BedDouble size={12} className="text-indigo-400" />{p.bedrooms}</span> : <span className="text-slate-300">—</span>}
-                      </td>
-                      <td className="px-4 py-3 text-center hidden lg:table-cell">
-                        {p.bathrooms != null ? <span className="flex items-center justify-center gap-1 font-bold text-slate-700"><Bath size={12} className="text-cyan-400" />{p.bathrooms}</span> : <span className="text-slate-300">—</span>}
-                      </td>
-                      <td className="px-4 py-3 text-center hidden lg:table-cell">
-                        {p.garage != null ? <span className="flex items-center justify-center gap-1 font-bold text-slate-700"><Car size={12} className="text-slate-400" />{p.garage}</span> : <span className="text-slate-300">—</span>}
-                      </td>
                       <td className="px-3 py-3">
                         <div className="flex items-center gap-1.5">
-                          <a href={`/property/${id}?plot=${p.plotNumber}`} title="View Detail"
+                          <Link href={`/property/${id}?plot=${p.plotNumber}`} title="View Detail"
                             className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-[10px] uppercase tracking-wide transition-all">
                             <ExternalLink size={11} /> View
-                          </a>
+                          </Link>
                           <button onClick={() => openEdit(p)} title="Edit"
                             className="w-7 h-7 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-600 flex items-center justify-center transition-all border border-amber-100">
                             <Pencil size={13} />
