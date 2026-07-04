@@ -59,8 +59,8 @@ jobs:
           mkdir -p ~/.ssh
           cat >> ~/.ssh/config << 'EOF'
           Host *
-            ServerAliveInterval 15
-            ServerAliveCountMax 20
+            ServerAliveInterval 10
+            ServerAliveCountMax 30
             ConnectTimeout 60
             TCPKeepAlive yes
           EOF
@@ -69,53 +69,39 @@ jobs:
       - name: Create Tarball Archive
         run: tar -czf deploy.tar.gz -C deploy-package .
 
-      - name: Write remote deploy script
+      # Single SSH session: stream tarball via stdin, extract, restart — no separate SCP connection.
+      # This avoids the server rate-limiting two rapid SSH connections from the same IP.
+      - name: Stream Deploy to cPanel (single SSH session)
         run: |
-          cat > deploy-remote.sh << 'SCRIPT'
-          #!/bin/bash
-          APP_ROOT="$1"
-          LOG="$APP_ROOT/deploy.log"
-          (
-            echo "[$(date)] === Deploy started ==="
-            cd "$APP_ROOT" || exit 1
-
-            # Kill stale node processes in this dir
-            for pid in $(pgrep -u "$(whoami)" -f node 2>/dev/null); do
-              cwd=$(readlink -f /proc/$pid/cwd 2>/dev/null || true)
-              [ "$cwd" = "$APP_ROOT" ] && kill -9 "$pid" 2>/dev/null && echo "[$(date)] Killed PID $pid"
-            done
-
-            echo "[$(date)] Extracting..."
-            tar -xzf deploy.tar.gz
-            rm -f deploy.tar.gz deploy-remote.sh
-
-            mkdir -p tmp
-            touch tmp/restart.txt
-            echo "[$(date)] Passenger restarted. Deploy complete!"
-          ) >> "$LOG" 2>&1
-          SCRIPT
-          chmod +x deploy-remote.sh
-
-      - name: Upload Tarball and Deploy Script to cPanel
-        run: |
-          scp -P "${{ secrets.CPANEL_SSH_PORT }}" \
+          APP="${{ secrets.CPANEL_APP_ROOT }}"
+          cat deploy.tar.gz | ssh \
             -o ConnectTimeout=60 \
-            -o ServerAliveInterval=15 \
-            -o ServerAliveCountMax=20 \
-            -o StrictHostKeyChecking=no \
-            deploy.tar.gz \
-            deploy-remote.sh \
-            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}:${{ secrets.CPANEL_APP_ROOT }}/"
-
-      - name: Trigger Deploy (background, no wait)
-        # Run the deploy script completely detached so SSH returns immediately.
-        # The script logs to deploy.log on the server for debugging.
-        run: |
-          ssh \
-            -o ConnectTimeout=60 \
-            -o ServerAliveInterval=15 \
-            -o ServerAliveCountMax=20 \
+            -o ServerAliveInterval=10 \
+            -o ServerAliveCountMax=30 \
+            -o TCPKeepAlive=yes \
             -o StrictHostKeyChecking=no \
             -p "${{ secrets.CPANEL_SSH_PORT }}" \
             "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}" \
-            "nohup bash ${{ secrets.CPANEL_APP_ROOT }}/deploy-remote.sh '${{ secrets.CPANEL_APP_ROOT }}' >/dev/null 2>&1 </dev/null & disown %1; sleep 2; echo 'Deploy triggered'"
+            "
+              set -e
+              cd '$APP'
+
+              echo '[1/4] Receiving tarball...'
+              cat > deploy.tar.gz
+
+              echo '[2/4] Killing stale node processes...'
+              for pid in \$(pgrep -u \"\$(whoami)\" -f node 2>/dev/null); do
+                cwd=\$(readlink -f /proc/\$pid/cwd 2>/dev/null || true)
+                [ \"\$cwd\" = '$APP' ] && kill -9 \"\$pid\" 2>/dev/null && echo \"  Killed PID \$pid\" || true
+              done
+
+              echo '[3/4] Extracting...'
+              tar -xzf deploy.tar.gz
+              rm -f deploy.tar.gz
+
+              echo '[4/4] Restarting Passenger...'
+              mkdir -p tmp
+              touch tmp/restart.txt
+
+              echo 'Deploy complete!'
+            "
