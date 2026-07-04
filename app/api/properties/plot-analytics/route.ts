@@ -62,7 +62,7 @@ export async function GET() {
         p.status,
         COUNT(pd.id) AS total_plots,
         COUNT(CASE WHEN pd.purchaser_name NOT ILIKE '%tulu dimtu%' AND TRIM(pd.purchaser_name) != '' THEN 1 END) AS sold_plots,
-        SUM(SPLIT_PART(pd.plot_size, '+', 1)::numeric) AS total_area,
+        SUM(CASE WHEN SPLIT_PART(pd.plot_size, '+', 1) ~ '^[0-9]+(\.[0-9]+)?$' THEN SPLIT_PART(pd.plot_size, '+', 1)::numeric ELSE 0 END) AS total_area,
         COUNT(CASE WHEN pd.title_deeds_status = 'ISSUED' THEN 1 END) AS deeds_issued
       FROM properties p
       LEFT JOIN plot_details pd ON pd.block_id = p.id

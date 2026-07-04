@@ -3,7 +3,7 @@ name: Deploy Next.js to cPanel
 on:
   push:
     branches:
-      - main  # Triggers deployment when pushing to the main branch
+      - main
   workflow_dispatch:
 
 concurrency:
@@ -31,7 +31,6 @@ jobs:
         env:
           NEXT_PUBLIC_APP_URL: https://realestate.amanberkigroup.com
           NODE_ENV: production
-          # Injecting dummy environment variables to satisfy compile-time imports
           DATABASE_URL: postgresql://dummy_user:dummy_password@127.0.0.1:5432/dummy_db
           JWT_SECRET: dummy_jwt_secret_for_compilation_only
           RESEND_API_KEY: re_dummy_resend_key_for_compilation_only
@@ -42,26 +41,12 @@ jobs:
         run: |
           rm -rf deploy-package
           mkdir -p deploy-package
-          
-          # 1. Copy standalone server files (includes server.js)
           cp -a .next/standalone/. deploy-package/
-          
-          # 2. Delete the node_modules folder from the bundle
-          # CloudLinux Node.js Selector requires node_modules to be a symlink on cPanel.
-          # Deleting it here prevents overwriting the cPanel symlink during upload.
           rm -rf deploy-package/node_modules
-          
-          # 3. Copy static files
           mkdir -p deploy-package/.next
           cp -a .next/static/. deploy-package/.next/static/ || cp -R .next/static deploy-package/.next/static
-          
-          # 4. Copy public assets if they exist
           if [ -d public ]; then cp -R public deploy-package/public; fi
-          
-          # 5. Copy database migrations scripts
           if [ -d scripts ]; then cp -R scripts deploy-package/scripts; fi
-          
-          # 6. Copy package.json for script runner reference
           cp package.json deploy-package/package.json
 
       - name: Load SSH key
@@ -72,7 +57,6 @@ jobs:
       - name: Add server to known hosts
         run: |
           mkdir -p ~/.ssh
-          # Add SSH keepalive settings to prevent timeout during long operations
           cat >> ~/.ssh/config << 'EOF'
           Host *
             ServerAliveInterval 15
@@ -83,47 +67,32 @@ jobs:
           ssh-keyscan -p "${{ secrets.CPANEL_SSH_PORT }}" -H "${{ secrets.CPANEL_SSH_HOST }}" >> ~/.ssh/known_hosts
 
       - name: Create Tarball Archive
-        run: |
-          tar -czf deploy.tar.gz -C deploy-package .
+        run: tar -czf deploy.tar.gz -C deploy-package .
 
       - name: Write remote deploy script
         run: |
-          # Write the deploy script to a file (avoids all shell escaping issues)
           cat > deploy-remote.sh << 'SCRIPT'
           #!/bin/bash
           APP_ROOT="$1"
           LOG="$APP_ROOT/deploy.log"
+          (
+            echo "[$(date)] === Deploy started ==="
+            cd "$APP_ROOT" || exit 1
 
-          {
-            echo "[$(date)] Starting deploy..."
-            cd "$APP_ROOT"
-
-            # Kill any old node processes in this directory
+            # Kill stale node processes in this dir
             for pid in $(pgrep -u "$(whoami)" -f node 2>/dev/null); do
               cwd=$(readlink -f /proc/$pid/cwd 2>/dev/null || true)
-              if [ "$cwd" = "$APP_ROOT" ]; then
-                echo "[$(date)] Terminating old node process: $pid"
-                kill -9 "$pid" 2>/dev/null || true
-              fi
+              [ "$cwd" = "$APP_ROOT" ] && kill -9 "$pid" 2>/dev/null && echo "[$(date)] Killed PID $pid"
             done
 
-            # Extract new build
-            echo "[$(date)] Extracting deploy.tar.gz..."
+            echo "[$(date)] Extracting..."
             tar -xzf deploy.tar.gz
-            rm -f deploy.tar.gz
+            rm -f deploy.tar.gz deploy-remote.sh
 
-            # Touch restart.txt to trigger Passenger hot reload
             mkdir -p tmp
             touch tmp/restart.txt
-
-            # Self-cleanup
-            rm -f "$APP_ROOT/deploy-remote.sh"
-
-            echo "[$(date)] Deploy complete!"
-          } >> "$LOG" 2>&1 &
-
-          # Print the background PID and exit immediately
-          echo "Deploy started in background (PID $!). Check $LOG for progress."
+            echo "[$(date)] Passenger restarted. Deploy complete!"
+          ) >> "$LOG" 2>&1
           SCRIPT
           chmod +x deploy-remote.sh
 
@@ -133,19 +102,20 @@ jobs:
             -o ConnectTimeout=60 \
             -o ServerAliveInterval=15 \
             -o ServerAliveCountMax=20 \
+            -o StrictHostKeyChecking=no \
             deploy.tar.gz \
             deploy-remote.sh \
             "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}:${{ secrets.CPANEL_APP_ROOT }}/"
 
-      - name: Trigger Deploy on cPanel Server
+      - name: Trigger Deploy (background, no wait)
+        # Run the deploy script completely detached so SSH returns immediately.
+        # The script logs to deploy.log on the server for debugging.
         run: |
-          # Launch the deploy script in the background on the remote server.
-          # The script detaches immediately (via & disown), so SSH exits right away
-          # instead of waiting for the full deploy — preventing timeout.
           ssh \
             -o ConnectTimeout=60 \
             -o ServerAliveInterval=15 \
             -o ServerAliveCountMax=20 \
+            -o StrictHostKeyChecking=no \
             -p "${{ secrets.CPANEL_SSH_PORT }}" \
             "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}" \
-            "nohup bash ${{ secrets.CPANEL_APP_ROOT }}/deploy-remote.sh ${{ secrets.CPANEL_APP_ROOT }} > /dev/null 2>&1 & disown; echo 'Deploy triggered OK'"
+            "nohup bash ${{ secrets.CPANEL_APP_ROOT }}/deploy-remote.sh '${{ secrets.CPANEL_APP_ROOT }}' >/dev/null 2>&1 </dev/null & disown %1; sleep 2; echo 'Deploy triggered'"
