@@ -1,6 +1,5 @@
 "use client";
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { usePathname } from "next/navigation";
 import { getPermissions, type AppRole, type RolePermissions } from "@/lib/roles";
 
 interface UserInfo {
@@ -34,27 +33,14 @@ const RoleContext = createContext<RoleContextValue>({
 export function RoleProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const pathname = usePathname();
 
   useEffect(() => {
-    // Skip re-fetching on the login page — the user is not authenticated there
-    if (pathname === "/login") {
-      Promise.resolve().then(() => {
-        setUser(null);
-        setIsLoading(false);
-      });
-      return;
-    }
-
-    Promise.resolve().then(() => {
-      setIsLoading(true);
-      fetch("/api/auth/me")
-        .then((r) => r.json())
-        .then((d) => setUser(d.user ?? null))
-        .catch(() => setUser(null))
-        .finally(() => setIsLoading(false));
-    });
-  }, [pathname]); // Re-fetch whenever the route changes
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((d) => setUser(d.user ?? null))
+      .catch(() => setUser(null))
+      .finally(() => setIsLoading(false));
+  }, []);
 
   const role = user?.role ?? null;
   const permissions = getPermissions(role ?? undefined);

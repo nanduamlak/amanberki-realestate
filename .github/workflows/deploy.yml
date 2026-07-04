@@ -75,9 +75,10 @@ jobs:
           # Add SSH keepalive settings to prevent timeout during long operations
           cat >> ~/.ssh/config << 'EOF'
           Host *
-            ServerAliveInterval 30
-            ServerAliveCountMax 10
+            ServerAliveInterval 15
+            ServerAliveCountMax 20
             ConnectTimeout 60
+            TCPKeepAlive yes
           EOF
           ssh-keyscan -p "${{ secrets.CPANEL_SSH_PORT }}" -H "${{ secrets.CPANEL_SSH_HOST }}" >> ~/.ssh/known_hosts
 
@@ -90,56 +91,61 @@ jobs:
           # Write the deploy script to a file (avoids all shell escaping issues)
           cat > deploy-remote.sh << 'SCRIPT'
           #!/bin/bash
-          set -e
           APP_ROOT="$1"
+          LOG="$APP_ROOT/deploy.log"
 
-          cd "$APP_ROOT"
+          {
+            echo "[$(date)] Starting deploy..."
+            cd "$APP_ROOT"
 
-          # Kill any old node processes in this directory
-          for pid in $(pgrep -u "$(whoami)" -f node 2>/dev/null); do
-            cwd=$(readlink -f /proc/$pid/cwd 2>/dev/null || true)
-            if [ "$cwd" = "$APP_ROOT" ]; then
-              echo "Terminating old node process: $pid"
-              kill -9 "$pid" 2>/dev/null || true
-            fi
-          done
+            # Kill any old node processes in this directory
+            for pid in $(pgrep -u "$(whoami)" -f node 2>/dev/null); do
+              cwd=$(readlink -f /proc/$pid/cwd 2>/dev/null || true)
+              if [ "$cwd" = "$APP_ROOT" ]; then
+                echo "[$(date)] Terminating old node process: $pid"
+                kill -9 "$pid" 2>/dev/null || true
+              fi
+            done
 
-          # Extract new build
-          echo "Extracting deploy.tar.gz..."
-          tar -xzf deploy.tar.gz
-          rm -f deploy.tar.gz
+            # Extract new build
+            echo "[$(date)] Extracting deploy.tar.gz..."
+            tar -xzf deploy.tar.gz
+            rm -f deploy.tar.gz
 
-          # Touch restart.txt to trigger Passenger hot reload
-          mkdir -p tmp
-          touch tmp/restart.txt
+            # Touch restart.txt to trigger Passenger hot reload
+            mkdir -p tmp
+            touch tmp/restart.txt
 
-          echo "Deploy complete!"
+            # Self-cleanup
+            rm -f "$APP_ROOT/deploy-remote.sh"
+
+            echo "[$(date)] Deploy complete!"
+          } >> "$LOG" 2>&1 &
+
+          # Print the background PID and exit immediately
+          echo "Deploy started in background (PID $!). Check $LOG for progress."
           SCRIPT
           chmod +x deploy-remote.sh
 
       - name: Upload Tarball and Deploy Script to cPanel
         run: |
           scp -P "${{ secrets.CPANEL_SSH_PORT }}" \
+            -o ConnectTimeout=60 \
+            -o ServerAliveInterval=15 \
+            -o ServerAliveCountMax=20 \
             deploy.tar.gz \
             deploy-remote.sh \
             "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}:${{ secrets.CPANEL_APP_ROOT }}/"
 
-      - name: Extract and Deploy on cPanel Server
+      - name: Trigger Deploy on cPanel Server
         run: |
+          # Launch the deploy script in the background on the remote server.
+          # The script detaches immediately (via & disown), so SSH exits right away
+          # instead of waiting for the full deploy — preventing timeout.
           ssh \
             -o ConnectTimeout=60 \
-            -o ServerAliveInterval=30 \
-            -o ServerAliveCountMax=10 \
-            -p "${{ secrets.CPANEL_SSH_PORT }}" \
-            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}" \
-            "bash ${{ secrets.CPANEL_APP_ROOT }}/deploy-remote.sh ${{ secrets.CPANEL_APP_ROOT }}"
-
-      - name: Cleanup remote deploy script
-        if: always()
-        run: |
-          ssh \
-            -o ConnectTimeout=30 \
             -o ServerAliveInterval=15 \
+            -o ServerAliveCountMax=20 \
             -p "${{ secrets.CPANEL_SSH_PORT }}" \
             "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}" \
-            "rm -f ${{ secrets.CPANEL_APP_ROOT }}/deploy-remote.sh" || true
+            "nohup bash ${{ secrets.CPANEL_APP_ROOT }}/deploy-remote.sh ${{ secrets.CPANEL_APP_ROOT }} > /dev/null 2>&1 & disown; echo 'Deploy triggered OK'"

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRole } from "@/lib/RoleContext";
 import { usePropertyStore } from "@/lib/usePropertyStore";
 import { useRouter } from "next/navigation";
@@ -21,9 +21,10 @@ import {
   PieChart as PieChartIcon,
   FileText,
   ShieldCheck,
-  ShieldAlert
+  ShieldAlert,
+  Layers
 } from "lucide-react";
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend } from "recharts";
 import { toast } from "@/lib/toast";
 
 export default function DashboardPage() {
@@ -105,6 +106,33 @@ export default function DashboardPage() {
       Sold: sold,
     };
   });
+
+  // Zone-Level Plot Analysis chart data (from plotAnalytics API)
+  const zonePlotChartData = useMemo(() => {
+    if (!plotAnalytics?.zonePlots) {
+      // Fallback: derive from block list
+      return (["Zone I G+1", "Zone II G+0"] as const).map(zone => {
+        const zoneProps = list.filter((p) => p.zone === zone);
+        const total = zoneProps.reduce((sum, p) => sum + (p.noOfPlots || 0), 0);
+        const sold = zoneProps.reduce((sum, p) => sum + (p.soldPlots || 0), 0);
+        const avail = zoneProps.reduce((sum, p) => sum + (p.activePlots || 0), 0);
+        return {
+          name: zone === "Zone I G+1" ? "Zone I" : "Zone II",
+          "Total Plots": total,
+          "Sold": sold,
+          "Available": avail,
+          "Deeds Issued": 0,
+        };
+      });
+    }
+    return plotAnalytics.zonePlots.map((z: any) => ({
+      name: z.zone === "Zone I G+1" ? "Zone I" : z.zone === "Zone II G+0" ? "Zone II" : z.zone,
+      "Total Plots": z.totalPlots,
+      "Sold": z.soldPlots,
+      "Available": z.availablePlots,
+      "Deeds Issued": z.deedsIssued,
+    }));
+  }, [plotAnalytics, list]);
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-foreground pb-20 relative overflow-hidden">
@@ -232,96 +260,36 @@ export default function DashboardPage() {
           </Card>
         </div>
 
-        {/* Recent Activity Tables */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-          {/* Available Highlight */}
-          <Card className="border border-slate-200/60 shadow-sm bg-white hover:border-slate-300 transition-colors duration-300 rounded-2xl flex flex-col overflow-hidden">
-            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-white">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-green-100 rounded-lg text-green-600"><CheckCircle2 size={20} /></div>
-                <span className="font-bold text-slate-900 text-lg">Available Blocks</span>
-              </div>
-              <button onClick={() => router.push("/properties")} className="text-sm font-bold text-primary hover:text-primary/80 transition-colors">View all</button>
-            </div>
-            <div className="flex-1 p-2 overflow-y-auto max-h-[360px]">
-              {recentAvail.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-slate-400 p-6 text-center text-sm font-semibold">
-                  <CheckCircle2 size={32} className="text-slate-200 mb-2" />
-                  No available blocks found
-                </div>
-              ) : (
-                recentAvail.map((p) => (
-                  <div
-                    key={p.id}
-                    onClick={() => router.push(`/property/${p.id}`)}
-                    className="p-3 mx-2 my-1 rounded-xl flex justify-between items-center cursor-pointer hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-all group"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-600 group-hover:bg-primary/10 group-hover:text-primary transition-colors">
-                        {p.blockNumber}
-                      </div>
-                      <div>
-                        <div className="font-bold text-slate-900">Block {p.blockNumber}</div>
-                        <div className="text-xs font-semibold text-slate-500 mt-0.5">{p.activePlots} / {p.noOfPlots} plots available · {p.zone}</div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-extrabold text-slate-900">
-                        {p.price > 0 ? formatPriceRange(p.price, p.priceMax) : "Unlisted"}
-                      </div>
-                      <Badge variant="outline" className="border-green-200 text-green-600 bg-green-50 mt-1 uppercase text-[9px] tracking-widest px-2 py-0">Active</Badge>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </Card>
-
-          {/* Sold Highlight */}
-          <Card className="border border-slate-200/60 shadow-sm bg-white hover:border-slate-300 transition-colors duration-300 rounded-2xl flex flex-col overflow-hidden">
-            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-white">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-rose-100 rounded-lg text-rose-600"><CircleDollarSign size={20} /></div>
-                <span className="font-bold text-slate-900 text-lg">Recently Sold Blocks</span>
-              </div>
-              <button onClick={() => router.push("/properties")} className="text-sm font-bold text-primary hover:text-primary/80 transition-colors">View all</button>
-            </div>
-            <div className="flex-1 p-2 overflow-y-auto max-h-[360px]">
-              {recentSold.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-slate-400 p-6 text-center text-sm font-semibold">
-                  <CircleDollarSign size={32} className="text-slate-200 mb-2" />
-                  No recently sold blocks
-                </div>
-              ) : (
-                recentSold.map((p) => (
-                  <div
-                    key={p.id}
-                    onClick={() => router.push(`/property/${p.id}`)}
-                    className="p-3 mx-2 my-1 rounded-xl flex justify-between items-center cursor-pointer hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-all group"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-600 group-hover:bg-rose-100 group-hover:text-rose-600 transition-colors">
-                        {p.blockNumber}
-                      </div>
-                      <div>
-                        <div className="font-bold text-slate-900">Block {p.blockNumber}</div>
-                        <div className="text-xs font-semibold text-slate-500 mt-0.5">{p.soldPlots} / {p.noOfPlots} plots sold · {p.zone}</div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-extrabold text-slate-900">
-                        {p.price > 0 ? formatPriceRange(p.price, p.priceMax) : "Unlisted"}
-                      </div>
-                      <Badge variant="outline" className="border-rose-200 text-rose-600 bg-rose-50 mt-1 uppercase text-[9px] tracking-widest px-2 py-0">Sold</Badge>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </Card>
-
-        </div>
+        {/* Zone-Level Plot Analysis */}
+        <Card className="border border-slate-200/60 shadow-sm bg-white hover:border-slate-300 transition-colors duration-300 rounded-2xl">
+          <CardHeader className="pb-2 border-b border-slate-100">
+            <CardTitle className="text-lg font-bold flex items-center gap-2 text-slate-800">
+              <Layers className="text-indigo-600" size={20} /> Zone-Level Plot Analysis
+            </CardTitle>
+            <p className="text-sm text-slate-500 mt-0.5">Comparison of total, sold, available plots and title deeds issued by zone</p>
+          </CardHeader>
+          <CardContent className="p-6 h-[300px]">
+            {zonePlotChartData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={zonePlotChartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 13, fontWeight: 700 }} dy={10} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
+                  <Tooltip
+                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)', fontWeight: 600 }}
+                  />
+                  <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+                  <Bar name="Total Plots" dataKey="Total Plots" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                  <Bar name="Sold" dataKey="Sold" fill="#f43f5e" radius={[4, 4, 0, 0]} />
+                  <Bar name="Available" dataKey="Available" fill="#10b981" radius={[4, 4, 0, 0]} />
+                  <Bar name="Deeds Issued" dataKey="Deeds Issued" fill="#06b6d4" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-slate-400 text-sm">No data available</div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

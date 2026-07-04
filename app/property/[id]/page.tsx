@@ -169,7 +169,7 @@ export default function PropertyDetailPage({ params }: { params: Promise<{ id: s
           <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <button 
-                onClick={() => setSelectedPlot(null)}
+                onClick={() => router.push(`/properties/${id}/plots`)}
                 className="h-10 w-10 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600 transition-all shrink-0"
               >
                 <ArrowLeft size={16} />

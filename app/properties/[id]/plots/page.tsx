@@ -87,6 +87,15 @@ export default function PlotManagementPage({ params }: { params: Promise<{ id: s
         (p.constructionStatus ?? "").toLowerCase().includes(q)
       );
     }
+    // Sort numerically: "1","2"..."10" instead of "1","10","2"
+    data.sort((a, b) => {
+      const na = parseInt(a.plotNumber, 10);
+      const nb = parseInt(b.plotNumber, 10);
+      if (!isNaN(na) && !isNaN(nb)) return na - nb;
+      if (!isNaN(na)) return -1;  // numbers before non-numeric (e.g. "A")
+      if (!isNaN(nb)) return 1;
+      return a.plotNumber.localeCompare(b.plotNumber);
+    });
     return data;
   }, [plots, search, deedFilter, constFilter, houseFilter]);
 
