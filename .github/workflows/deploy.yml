@@ -6,6 +6,7 @@ on:
       - main
   workflow_dispatch:
 
+# Only one deploy can run at a time. New push cancels any in-progress deploy.
 concurrency:
   group: deploy-cpanel-production
   cancel-in-progress: true
@@ -13,6 +14,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 20  # Hard cap - prevents hanging jobs consuming GitHub runners
 
     steps:
       - name: Checkout repository
@@ -37,16 +39,16 @@ jobs:
           DATABASE_SSL: false
         run: npm run build
 
-      - name: Prepare cPanel deploy package
+      - name: Prepare deploy package
         run: |
           rm -rf deploy-package
           mkdir -p deploy-package
           cp -a .next/standalone/. deploy-package/
           rm -rf deploy-package/node_modules
           mkdir -p deploy-package/.next
-          cp -a .next/static/. deploy-package/.next/static/ || cp -R .next/static deploy-package/.next/static
-          if [ -d public ]; then cp -R public deploy-package/public; fi
-          if [ -d scripts ]; then cp -R scripts deploy-package/scripts; fi
+          cp -a .next/static/. deploy-package/.next/static/
+          [ -d public ]  && cp -R public  deploy-package/public
+          [ -d scripts ] && cp -R scripts deploy-package/scripts
           cp package.json deploy-package/package.json
 
       - name: Load SSH key
@@ -66,12 +68,15 @@ jobs:
           EOF
           ssh-keyscan -p "${{ secrets.CPANEL_SSH_PORT }}" -H "${{ secrets.CPANEL_SSH_HOST }}" >> ~/.ssh/known_hosts
 
-      - name: Create Tarball Archive
+      - name: Create tarball
         run: tar -czf deploy.tar.gz -C deploy-package .
 
-      # Single SSH session: stream tarball via stdin, extract, restart — no separate SCP connection.
-      # This avoids the server rate-limiting two rapid SSH connections from the same IP.
-      - name: Stream Deploy to cPanel (single SSH session)
+      # ── SINGLE SSH SESSION ─────────────────────────────────────────────────
+      # Stream the tarball via stdin so upload + extract happen in ONE connection.
+      # No nohup, no background processes, no second SSH connection.
+      # The server receives the tar via stdin pipe, extracts, restarts Passenger.
+      # ───────────────────────────────────────────────────────────────────────
+      - name: Deploy to cPanel
         run: |
           APP="${{ secrets.CPANEL_APP_ROOT }}"
           cat deploy.tar.gz | ssh \

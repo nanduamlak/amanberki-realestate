@@ -111,19 +111,12 @@ function PropertyFormModal({
             </Field>
           </div>
 
-          {/* Zone + Status */}
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Zone">
-              <select className={INPUT} value={form.zone} onChange={e => set("zone", e.target.value as typeof ZONES[number])}>
-                {ZONES.map(z => <option key={z}>{z}</option>)}
-              </select>
-            </Field>
-            <Field label="Status">
-              <select className={INPUT} value={form.status} onChange={e => set("status", e.target.value as PropertyStatus)}>
-                {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
-              </select>
-            </Field>
-          </div>
+          {/* Zone — full width now that Status is removed */}
+          <Field label="Zone">
+            <select className={INPUT} value={form.zone} onChange={e => set("zone", e.target.value as typeof ZONES[number])}>
+              {ZONES.map(z => <option key={z}>{z}</option>)}
+            </select>
+          </Field>
 
           {/* Price + Area */}
           <div className="grid grid-cols-2 gap-4">
@@ -135,31 +128,6 @@ function PropertyFormModal({
             </Field>
           </div>
 
-          {/* Plots */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <Field label="Primary Plots">
-              <input className={INPUT} value={form.primaryPlots} onChange={e => set("primaryPlots", e.target.value)} placeholder="P 1-5" />
-            </Field>
-            <Field label="Total Plots">
-              <input className={INPUT} type="number" value={form.noOfPlots || ""} onChange={e => set("noOfPlots", Number(e.target.value))} placeholder="0" />
-            </Field>
-            <Field label="Active Plots">
-              <input className={INPUT} type="number" value={form.activePlots || ""} onChange={e => set("activePlots", Number(e.target.value))} placeholder="0" />
-            </Field>
-            <Field label="Sold Plots">
-              <input className={INPUT} type="number" value={form.soldPlots || ""} onChange={e => set("soldPlots", Number(e.target.value))} placeholder="0" />
-            </Field>
-          </div>
-
-          {/* Buffer */}
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Plot Size (m²)" hint="e.g. 400 or 200-300">
-              <input className={INPUT} value={form.plotSize} onChange={e => set("plotSize", e.target.value)} placeholder="400" />
-            </Field>
-            <Field label="Buffer Plots">
-              <input className={INPUT} value={form.bufferPlots} onChange={e => set("bufferPlots", e.target.value)} placeholder="P 6-8" />
-            </Field>
-          </div>
 
           {/* Description */}
           <Field label="Description">
@@ -392,8 +360,7 @@ export default function PropertiesPage() {
     const soldPlots   = list.reduce((s, p) => s + p.soldPlots, 0);
     const availPlots  = list.reduce((s, p) => s + p.activePlots, 0);
     const fullBlocks  = list.filter(p => occupancyBucket(p.soldPlots, p.noOfPlots) === "full").length;
-    const emptyBlocks = list.filter(p => occupancyBucket(p.soldPlots, p.noOfPlots) === "empty").length;
-    return { totalBlocks: list.length, totalPlots, soldPlots, availPlots, fullBlocks, emptyBlocks };
+    return { totalBlocks: list.length, totalPlots, soldPlots, availPlots, fullBlocks };
   }, [list]);
 
   return (
@@ -427,14 +394,13 @@ export default function PropertiesPage() {
         </div>
 
         {/* ── STAT CARDS — plot-level ── */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           {[
             { label: "Total Blocks",   value: plotStats.totalBlocks,  sub: "blocks",  color: "text-slate-900  bg-white        border-slate-200"  },
             { label: "Total Plots",    value: plotStats.totalPlots,   sub: "plots",   color: "text-slate-700  bg-slate-50     border-slate-200"  },
             { label: "Sold Plots",     value: plotStats.soldPlots,    sub: "sold",    color: "text-rose-700   bg-rose-50      border-rose-200"   },
             { label: "Avail. Plots",   value: plotStats.availPlots,   sub: "avail",   color: "text-emerald-700 bg-emerald-50  border-emerald-200"},
             { label: "Fully Sold",     value: plotStats.fullBlocks,   sub: "blocks",  color: "text-rose-800   bg-rose-100     border-rose-300"   },
-            { label: "Empty Blocks",   value: plotStats.emptyBlocks,  sub: "blocks",  color: "text-emerald-800 bg-emerald-100 border-emerald-300"},
           ].map(s => (
             <div key={s.label} className={`rounded-xl border px-4 py-3 ${s.color}`}>
               <p className="text-[10px] font-bold uppercase tracking-widest opacity-60">{s.label}</p>
@@ -795,11 +761,7 @@ export default function PropertiesPage() {
                   </button>
                 </div>
               )}
-
-              <span className="hidden md:flex text-xs text-slate-400 font-medium items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
-                Live — data from PostgreSQL
-              </span>
+             
             </div>
           </div>
         )}

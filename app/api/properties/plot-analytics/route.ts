@@ -7,9 +7,30 @@ import { query } from "@/lib/db";
  * - title_deeds breakdown
  * - construction_status breakdown
  * - zone-level plot counts
+ * - grand-total summary (totalBlocks, totalPlots, soldPlots, activePlots, totalArea)
  */
 export async function GET() {
   try {
+    // ── Grand-total summary (live from DB) ────────────────────
+    const summaryResult = await query(`
+      SELECT
+        COUNT(DISTINCT p.id)  AS total_blocks,
+        COUNT(pd.id)          AS total_plots,
+        COUNT(CASE WHEN pd.purchaser_name NOT ILIKE '%tulu dimtu%'
+                        AND TRIM(pd.purchaser_name) != ''
+                   THEN 1 END) AS sold_plots,
+        COUNT(CASE WHEN pd.purchaser_name ILIKE '%tulu dimtu%'
+                     OR TRIM(pd.purchaser_name) = ''
+                   THEN 1 END) AS active_plots,
+        COALESCE(SUM(
+          CASE WHEN SPLIT_PART(pd.plot_size, '+', 1) ~ '^[0-9]+(\.[0-9]+)?$'
+               THEN SPLIT_PART(pd.plot_size, '+', 1)::numeric
+               ELSE 0 END
+        ), 0) AS total_area
+      FROM properties p
+      LEFT JOIN plot_details pd ON pd.block_id = p.id
+    `);
+
     // Title Deeds Status distribution
     const titleDeedsResult = await query(`
       SELECT
@@ -71,7 +92,15 @@ export async function GET() {
       LIMIT 15
     `);
 
+    const s = summaryResult.rows[0];
     return NextResponse.json({
+      summary: {
+        totalBlocks:  Number(s.total_blocks),
+        totalPlots:   Number(s.total_plots),
+        soldPlots:    Number(s.sold_plots),
+        activePlots:  Number(s.active_plots),
+        totalArea:    Number(s.total_area),
+      },
       titleDeeds: titleDeedsResult.rows.map(r => ({
         status: r.status,
         count: Number(r.count),

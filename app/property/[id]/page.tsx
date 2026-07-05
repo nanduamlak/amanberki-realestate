@@ -329,19 +329,21 @@ export default function PropertyDetailPage({ params }: { params: Promise<{ id: s
                 </div>
               )}
 
-              {/* Amenities */}
-              <div className="bg-white border border-slate-200/60 rounded-3xl p-6 shadow-sm space-y-4">
-                <h3 className="font-extrabold text-slate-900 text-sm border-b border-slate-100 pb-3 flex items-center gap-2">
-                  <Star size={16} className="text-indigo-600" /> Property Amenities
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {["Road Access", "Water Supply", "Electricity Grid", "Compound Wall", "Security Gate", "Green Belt"].map(a => (
-                    <span key={a} className="flex items-center gap-1 px-2.5 py-1 bg-[#0086D1]/8 border border-[#0086D1]/20 text-[#0086D1] rounded-full text-xs font-semibold">
-                      <CheckCircle2 size={11} />{a}
-                    </span>
-                  ))}
+              {/* Amenities — only show amenities saved on this plot */}
+              {(selectedPlot.amenities ?? []).length > 0 && (
+                <div className="bg-white border border-slate-200/60 rounded-3xl p-6 shadow-sm space-y-4">
+                  <h3 className="font-extrabold text-slate-900 text-sm border-b border-slate-100 pb-3 flex items-center gap-2">
+                    <Star size={16} className="text-indigo-600" /> Property Amenities
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {(selectedPlot.amenities ?? []).map(a => (
+                      <span key={a} className="flex items-center gap-1 px-2.5 py-1 bg-[#0086D1]/8 border border-[#0086D1]/20 text-[#0086D1] rounded-full text-xs font-semibold">
+                        <CheckCircle2 size={11} />{a}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Remarks */}
               {selectedPlot.remark && (
@@ -616,7 +618,7 @@ export default function PropertyDetailPage({ params }: { params: Promise<{ id: s
             </CardHeader>
             <CardContent className="text-slate-600 leading-relaxed space-y-4">
               <p>{property.description}</p>
-              <p>Located in the prestigious <strong className="text-slate-900 font-semibold">{property.zone}</strong> of Aman Berki Estates, Block {property.blockNumber} offers a perfect blend of modern architecture and comfortable living.</p>
+              <p>Located in the prestigious <strong className="text-slate-900 font-semibold">{property.zone}</strong> of Aman Berki Properties, Block {property.blockNumber} offers a perfect blend of modern architecture and comfortable living.</p>
             </CardContent>
           </Card>
 

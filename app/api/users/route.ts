@@ -64,9 +64,9 @@ export async function POST(request: Request) {
     } else {
       const resend = new Resend(process.env.RESEND_API_KEY);
       const { error: emailError } = await resend.emails.send({
-        from: "Aman Berki Estates <noreply@amanberkigroup.com>",
+        from: "Aman Berki Properties <noreply@amanberkigroup.com>",
         to: email,
-        subject: "You've been invited to Aman Berki Estates",
+        subject: "You've been invited to Aman Berki Properties  ",
         html: `
           <!DOCTYPE html>
           <html lang="en">
@@ -77,7 +77,7 @@ export async function POST(request: Request) {
                   <!-- Header -->
                   <tr>
                     <td style="background:linear-gradient(135deg,#0086D1 0%,#005fa3 100%);padding:40px 40px 32px;text-align:center;">
-                      <h1 style="color:#ffffff;margin:0;font-size:24px;font-weight:800;letter-spacing:-0.5px;">Aman Berki Estates</h1>
+                      <h1 style="color:#ffffff;margin:0;font-size:24px;font-weight:800;letter-spacing:-0.5px;">Aman Berki Properties</h1>
                       <p style="color:rgba(255,255,255,0.8);margin:8px 0 0;font-size:14px;">Property Management Platform</p>
                     </td>
                   </tr>
@@ -87,7 +87,7 @@ export async function POST(request: Request) {
                       <h2 style="color:#0f172a;margin:0 0 12px;font-size:20px;">You've been invited! 🎉</h2>
                       <p style="color:#475569;font-size:15px;line-height:1.6;margin:0 0 8px;">Hi <strong>${name}</strong>,</p>
                       <p style="color:#475569;font-size:15px;line-height:1.6;margin:0 0 24px;">
-                        An administrator has set up an account for you on the <strong>Aman Berki Estates</strong> platform 
+                        An administrator has set up an account for you on the <strong>Aman Berki Properties</strong> platform 
                         with the role of <strong style="color:#0086D1;">${role.replace("_", " ").replace(/\b\w/g, (c: string) => c.toUpperCase())}</strong>.
                         Click the button below to complete your registration and set your password.
                       </p>
@@ -117,7 +117,7 @@ export async function POST(request: Request) {
                   <tr>
                     <td style="background:#f8fafc;padding:20px 40px;border-top:1px solid #e2e8f0;text-align:center;">
                       <p style="color:#94a3b8;font-size:12px;margin:0;">
-                        You received this email because an administrator invited you to Aman Berki Estates.<br>
+                        You received this email because an administrator invited you to Aman Berki Properties.<br>
                         If you weren't expecting this, you can safely ignore this email.
                       </p>
                     </td>

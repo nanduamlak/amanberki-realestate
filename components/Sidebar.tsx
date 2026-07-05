@@ -79,7 +79,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
         {/* Logo */}
         <div className="flex items-center justify-center mb-6 shrink-0 overflow-hidden">
           <Image
-            src="/Logo.png" alt="Aman Berki Estates"
+            src="/Logo.png" alt="Aman Berki Properties"
             width={isOpen ? 40 : 48} height={isOpen ? 30 : 48}
             className="object-contain" priority
           />
@@ -226,7 +226,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
       <ConfirmModal
         isOpen={showLogoutConfirm}
         title="Sign Out"
-        message="Are you sure you want to sign out of Aman Berki Estates?"
+        message="Are you sure you want to sign out of Aman Berki Properties?"
         confirmLabel="Yes, Sign Out"
         cancelLabel="Stay Signed In"
         variant="warning"

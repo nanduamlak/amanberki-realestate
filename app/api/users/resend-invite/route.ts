@@ -53,9 +53,9 @@ export async function POST(request: NextRequest) {
 
     const resend = new Resend(process.env.RESEND_API_KEY);
     const { error: emailError } = await resend.emails.send({
-      from: "Aman Berki Estates <noreply@amanberkigroup.com>",
+      from: "Aman Berki Properties <noreply@amanberkigroup.com>",
       to: user.email,
-      subject: "Your Aman Berki Estates invitation (resent)",
+      subject: "Your Aman Berki Properties invitation (resent)",
       html: `
         <!DOCTYPE html>
         <html lang="en">
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
               <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
                 <tr>
                   <td style="background:linear-gradient(135deg,#0086D1 0%,#005fa3 100%);padding:40px 40px 32px;text-align:center;">
-                    <h1 style="color:#ffffff;margin:0;font-size:24px;font-weight:800;">Aman Berki Estates</h1>
+                    <h1 style="color:#ffffff;margin:0;font-size:24px;font-weight:800;">Aman Berki Properties</h1>
                     <p style="color:rgba(255,255,255,0.8);margin:8px 0 0;font-size:14px;">Property Management Platform</p>
                   </td>
                 </tr>
@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
                 </tr>
                 <tr>
                   <td style="background:#f8fafc;padding:20px 40px;border-top:1px solid #e2e8f0;text-align:center;">
-                    <p style="color:#94a3b8;font-size:12px;margin:0;">Aman Berki Estates · Property Management Platform</p>
+                    <p style="color:#94a3b8;font-size:12px;margin:0;">Aman Berki Properties · Property Management Platform</p>
                   </td>
                 </tr>
               </table>

@@ -65,9 +65,11 @@ function toPlot(row: Record<string, unknown>) {
     contractorName:     row.contractor_name,
     referenceNo:        row.reference_no,
     buyerGroup:         row.buyer_group ?? null,
+    amenities:          (row.amenities as string[]) ?? [],
     ownershipHistory:   (row.ownership_history as unknown[]) ?? [],
     paymentSchedule:    (row.payment_schedule  as unknown[]) ?? [],
   };
+
 }
 
 // ─── GET /api/properties/[id]/plots ──────────────────────────
@@ -140,8 +142,8 @@ export async function POST(req: NextRequest, { params }: Ctx) {
           title_deeds_status, construction_status, remark,
           house_type, floors, bedrooms, bathrooms, living_rooms,
           kitchen, dining, garage, balcony, garden, rooftop,
-          orientation, year_built, contractor_name, reference_no, buyer_group)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
+          orientation, year_built, contractor_name, reference_no, buyer_group, amenities)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
        RETURNING id`,
       [
         id, p.plotNumber, p.plotSize ?? "0", p.builtArea ?? "",
@@ -153,6 +155,7 @@ export async function POST(req: NextRequest, { params }: Ctx) {
         p.orientation ?? null, p.yearBuilt ?? null,
         p.contractorName ?? null, p.referenceNo ?? null,
         p.buyerGroup ?? null,
+        JSON.stringify(p.amenities ?? []),
       ]
     );
 
@@ -201,8 +204,9 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
          rooftop             = $17, orientation         = $18,
          year_built          = $19, contractor_name     = $20,
          reference_no        = $21, buyer_group         = $22,
+         amenities           = $23,
          updated_at          = NOW()
-       WHERE id = $23`,
+       WHERE id = $24`,
       [
         p.plotSize, p.builtArea ?? "", p.purchaserName ?? "",
         p.titleDeedsStatus ?? "", p.constructionStatus ?? "", p.remark ?? "",
@@ -213,6 +217,7 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
         p.orientation ?? null, p.yearBuilt ?? null,
         p.contractorName ?? null, p.referenceNo ?? null,
         p.buyerGroup ?? null,
+        JSON.stringify(p.amenities ?? []),
         plotDetailId,
       ]
     );
@@ -297,6 +302,8 @@ async function syncPayments(plotDetailId: number, list: Record<string, unknown>[
 }
 
 // ─── Block aggregate counter ──────────────────────────────────
+// Called after every plot INSERT / UPDATE / DELETE so that the
+// parent `properties` row always reflects real-time aggregates.
 async function refreshBlockCounts(blockId: string) {
   await query(
     `UPDATE properties SET
@@ -306,6 +313,17 @@ async function refreshBlockCounts(blockId: string) {
                        AND purchaser_name <> ''),
        active_plots = (SELECT COUNT(*) FROM plot_details WHERE block_id=$1
                        AND (purchaser_name ILIKE '%tulu dimtu%' OR purchaser_name = '')),
+       area         = (
+                       SELECT COALESCE(SUM(
+                         CASE
+                           WHEN SPLIT_PART(pd.plot_size, '+', 1) ~ '^[0-9]+(\.[0-9]+)?$'
+                           THEN SPLIT_PART(pd.plot_size, '+', 1)::numeric
+                           ELSE 0
+                         END
+                       ), 0)
+                       FROM plot_details pd
+                       WHERE pd.block_id = $1
+                     ),
        updated_at   = NOW()
      WHERE id=$1`,
     [blockId]

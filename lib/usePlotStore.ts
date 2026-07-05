@@ -101,6 +101,7 @@ export const BLANK_PLOT: PlotDetail = {
   orientation: "", yearBuilt: undefined,
   contractorName: "", referenceNo: "", buyerGroup: null,
   ownershipHistory: [], paymentSchedule: [],
+  amenities: ["Road Access", "Water Supply", "Electricity Grid", "Compound Wall", "Security Gate", "Green Belt"],
 };
 
 export const HOUSE_TYPES = ["Villa", "Townhouse", "Duplex", "Apartment", "Studio", "Commercial"] as const;
@@ -108,4 +109,8 @@ export const DEED_STATUSES = ["issued", "pending", "not-issued"] as const;
 export const CONSTRUCTION_STATUSES = [
   "", "Bare Land", "Foundation", "Blockwork", "Roofing",
   "Plastering", "Finishing", "Carried out", "Occupied",
+] as const;
+export const PLOT_AMENITIES = [
+  "Road Access", "Water Supply", "Electricity Grid",
+  "Compound Wall", "Security Gate", "Green Belt",
 ] as const;

@@ -64,8 +64,7 @@ export async function PUT(req: NextRequest) {
        SET price      = $1,
            price_max  = $2,
            updated_at = NOW()
-       WHERE zone = $3
-       RETURNING COUNT(*) OVER () AS affected`,
+       WHERE zone = $3`,
       [price, priceMax ?? null, zone]
     );
 

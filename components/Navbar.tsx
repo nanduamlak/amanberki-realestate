@@ -115,7 +115,7 @@ export default function Navbar() {
             <div className="hidden md:flex flex-col items-end">
               <span className="text-sm font-bold text-gray-900 leading-tight">{user.name}</span>
               <span className="mt-0.5 text-[10px] font-semibold text-[#0086D1] bg-[#0086D1]/10 px-2 py-0.5 rounded-full uppercase tracking-tight leading-tight">
-                {getRoleLabel(user.role)} • Aman Berki Estates
+                {getRoleLabel(user.role)} • Aman Berki Properties
               </span>
             </div>
           )}

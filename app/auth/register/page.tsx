@@ -151,7 +151,7 @@ function RegisterForm() {
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white shadow-lg shadow-[#0086D1]/10 border border-slate-200/60 text-[#0086D1] mb-6">
                 <Building2 size={32} />
               </div>
-              <h1 className="text-3xl font-black text-slate-900 tracking-tight">Aman Berki Estates</h1>
+              <h1 className="text-3xl font-black text-slate-900 tracking-tight">Aman Berki Properties</h1>
               <p className="text-slate-500 font-medium mt-2">Validating your invitation…</p>
             </div>
             <Card className="border border-slate-200/60 shadow-2xl shadow-slate-200/60 rounded-3xl overflow-hidden bg-white/90 backdrop-blur-xl">
@@ -169,7 +169,7 @@ function RegisterForm() {
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white shadow-lg shadow-[#0086D1]/10 border border-slate-200/60 text-[#0086D1] mb-6">
                 <Building2 size={32} />
               </div>
-              <h1 className="text-3xl font-black text-slate-900 tracking-tight">Aman Berki Estates</h1>
+              <h1 className="text-3xl font-black text-slate-900 tracking-tight">Aman Berki Properties</h1>
               <p className="text-slate-500 font-medium mt-2">Invalid Invitation Link</p>
             </div>
             <Card className="border border-slate-200/60 shadow-2xl shadow-slate-200/60 rounded-3xl overflow-hidden bg-white/90 backdrop-blur-xl">
@@ -196,7 +196,7 @@ function RegisterForm() {
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white shadow-lg shadow-[#0086D1]/10 border border-slate-200/60 text-[#0086D1] mb-6">
                 <Building2 size={32} />
               </div>
-              <h1 className="text-3xl font-black text-slate-900 tracking-tight">Aman Berki Estates</h1>
+              <h1 className="text-3xl font-black text-slate-900 tracking-tight">Aman Berki Properties</h1>
               <p className="text-slate-500 font-medium mt-2">Account activated!</p>
             </div>
             <Card className="border border-slate-200/60 shadow-2xl shadow-slate-200/60 rounded-3xl overflow-hidden bg-white/90 backdrop-blur-xl">
@@ -225,7 +225,7 @@ function RegisterForm() {
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white shadow-lg shadow-[#0086D1]/10 border border-slate-200/60 text-[#0086D1] mb-6">
                 <Building2 size={32} />
               </div>
-              <h1 className="text-3xl font-black text-slate-900 tracking-tight">Aman Berki Estates</h1>
+              <h1 className="text-3xl font-black text-slate-900 tracking-tight">Aman Berki Properties</h1>
               <p className="text-slate-500 font-medium mt-2">Complete your account setup</p>
             </div>
 

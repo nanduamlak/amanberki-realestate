@@ -214,7 +214,7 @@ export default function UserManagementPage() {
               <Users size={14} /> Administration
             </div>
             <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900 mb-2">User Management</h1>
-            <p className="text-slate-500 font-medium">Manage system access, roles, and accounts for Aman Berki Estates.</p>
+            <p className="text-slate-500 font-medium">Manage system access, roles, and accounts for Aman Berki Properties.</p>
           </div>
           <div className="flex items-center gap-3">
             <button onClick={() => fetchUsers(true)}

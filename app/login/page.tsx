@@ -59,7 +59,7 @@ export default function LoginPage() {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white shadow-lg shadow-[#0086D1]/10 border border-slate-200/60 text-[#0086D1] mb-6">
             <Building2 size={32} />
           </div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Aman Berki Estates</h1>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Aman Berki Properties</h1>
           <p className="text-slate-500 font-medium mt-2">Sign in to your account</p>
         </div>
 

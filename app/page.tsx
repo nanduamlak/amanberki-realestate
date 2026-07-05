@@ -7,7 +7,7 @@ import { usePropertyStore } from "@/lib/usePropertyStore";
 import { usePlotStore } from "@/lib/usePlotStore";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Map as MapIcon, Search, X, ArrowRight, Eye, EyeOff, Thermometer, Layers, CheckSquare, BarChart3, Printer, Maximize2, Minimize2, GitCompare, Link2 } from "lucide-react";
+import { Map as MapIcon, Search, X, ArrowRight, Eye, EyeOff, Thermometer, Layers, CheckSquare, BarChart3, Printer, Maximize2, Minimize2, GitCompare, Link2, Download, FileDown } from "lucide-react";
 import { useRole } from "@/lib/RoleContext";
 import { toast } from "@/lib/toast";
 
@@ -42,7 +42,7 @@ function getCentroid(pts: Point[]) {
 
 export default function HomePage() {
   const router = useRouter();
-  const { permissions, isLoading: roleLoading } = useRole();
+  const { permissions, isLoading: roleLoading, isSuperAdmin } = useRole();
   const { list: properties, update } = usePropertyStore();
   const [filter, setFilter] = useState<PropertyStatus | "all">("all");
   const [hoveredBlock, setHoveredBlock] = useState<number | null>(null);
@@ -80,6 +80,26 @@ export default function HomePage() {
   const pinchStartDist = useRef<number | null>(null);
   const pinchStartZoom = useRef(1);
   const mapImageRef = useRef<HTMLDivElement>(null);
+
+  // ── Inventory stats — same source as the Management Dashboard ────────────
+  // Uses /api/properties/plot-analytics (same endpoint as dashboard page)
+  // Shows only: Available (activePlots) and Sold (soldPlots)
+  const [inventoryStats, setInventoryStats] = useState({ total: 0, available: 0, sold: 0 });
+  useEffect(() => {
+    fetch("/api/properties/plot-analytics")
+      .then(r => r.json())
+      .then(d => {
+        const s = d?.summary;
+        if (s && typeof s.activePlots === "number") {
+          setInventoryStats({
+            total:     s.totalPlots   ?? 0,
+            available: s.activePlots  ?? 0,
+            sold:      s.soldPlots    ?? 0,
+          });
+        }
+      })
+      .catch(() => {/* silently stay at 0 */});
+  }, []);
 
   // Load hotspots: DB is authoritative, localStorage is instant fallback
   useEffect(() => {
@@ -176,24 +196,6 @@ export default function HomePage() {
     return false;
   }, [filter, viewMode, properties]);
 
-  const counts = useMemo(() => {
-    const c = { available: 0, sold: 0, reserved: 0, "under-construction": 0 } as Record<PropertyStatus, number>;
-    properties.forEach(p => c[getEffectiveStatus(p.blockNumber)]++);
-    return c;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [properties, timelineActive, timelineMonth]);
-
-  const plotCounts = useMemo(() => {
-    let total = 0;
-    let sold = 0;
-    let available = 0;
-    properties.forEach(p => {
-      total += p.noOfPlots;
-      sold += p.soldPlots;
-      available += p.activePlots;
-    });
-    return { total, sold, available };
-  }, [properties]);
 
   const priceRange = useMemo(() => {
     const prices = properties.map(p => p.price);
@@ -413,14 +415,7 @@ export default function HomePage() {
     });
   }
 
-  // Feature 15: compute nearby block IDs (±2 from hovered)
-  const nearbyBlockIds = new Set<number>();
-  if (hoveredBlock) {
-    for (let d = 1; d <= 2; d++) {
-      nearbyBlockIds.add(hoveredBlock - d);
-      nearbyBlockIds.add(hoveredBlock + d);
-    }
-  }
+
 
   // Feature 16: pinch-to-zoom touch handlers
   function getTouchDist(t: React.TouchList) {
@@ -475,42 +470,44 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-slate-50 text-foreground pb-20 relative">
 
-      {/* ── FEATURE 2: LIVE STATUS SUMMARY BAR ─────────────────────────────── */}
+      {/* ── LIVE INVENTORY BAR — Available vs Sold (mirrors dashboard) ───── */}
       <div className="bg-white border-b border-slate-100 px-6 py-4">
         <div className="max-w-[1500px] mx-auto">
           <div className="flex flex-wrap items-center gap-6 mb-3">
-            {(["available", "sold", "reserved", "under-construction"] as PropertyStatus[]).map(s => (
-              <div key={s} className="flex items-center gap-2">
-                <span className={`w-2.5 h-2.5 rounded-full ${STATUS_BG[s]}`} />
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">{STATUS_LABELS[s]}</span>
-                <span className="text-sm font-black text-slate-900">{counts[s]}</span>
-                <span className="text-xs text-slate-400">({properties.length ? Math.round((counts[s] / properties.length) * 100) : 0}%)</span>
-              </div>
-            ))}
-            <div className="ml-auto flex items-center gap-4 text-xs">
+
+            {/* AVAILABLE — active plots not yet sold */}
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Available</span>
+              <span className="text-sm font-black text-slate-900">{inventoryStats.available}</span>
+              <span className="text-xs text-slate-400">({inventoryStats.total ? Math.round((inventoryStats.available / inventoryStats.total) * 100) : 0}%)</span>
+            </div>
+
+            {/* SOLD — plots successfully closed */}
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-red-500" />
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Sold</span>
+              <span className="text-sm font-black text-slate-900">{inventoryStats.sold}</span>
+              <span className="text-xs text-slate-400">({inventoryStats.total ? Math.round((inventoryStats.sold / inventoryStats.total) * 100) : 0}%)</span>
+            </div>
+
+            {/* Summary metadata */}
+            <div className="ml-auto flex items-center gap-3 text-xs">
               <div className="flex items-center gap-2 bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-xl">
                 <span className="font-bold text-slate-500">Blocks:</span>
                 <span className="font-black text-slate-900">{properties.length}</span>
               </div>
               <div className="flex items-center gap-2 bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-xl">
                 <span className="font-bold text-slate-500">Total Plots:</span>
-                <span className="font-black text-slate-900">{plotCounts.total}</span>
-                <span className="text-slate-300">|</span>
-                <span className="font-bold text-emerald-600">{plotCounts.available} Avail</span>
-                <span className="text-slate-300">|</span>
-                <span className="font-bold text-red-500">{plotCounts.sold} Sold</span>
+                <span className="font-black text-slate-900">{inventoryStats.total}</span>
               </div>
             </div>
           </div>
-          {/* Segmented progress bar */}
+
+          {/* Two-segment progress bar: Available (green) | Sold (red) */}
           <div className="flex w-full h-2 rounded-full overflow-hidden gap-px">
-            {(["available", "sold", "reserved", "under-construction"] as PropertyStatus[]).map(s => (
-              <div
-                key={s}
-                className={STATUS_BG[s]}
-                style={{ width: `${properties.length ? (counts[s] / properties.length) * 100 : 0}%`, transition: "width 0.5s" }}
-              />
-            ))}
+            <div className="bg-emerald-500" style={{ width: `${inventoryStats.total ? (inventoryStats.available / inventoryStats.total) * 100 : 0}%`, transition: "width 0.5s" }} />
+            <div className="bg-red-500"    style={{ width: `${inventoryStats.total ? (inventoryStats.sold      / inventoryStats.total) * 100 : 0}%`, transition: "width 0.5s" }} />
           </div>
         </div>
       </div>
@@ -521,7 +518,7 @@ export default function HomePage() {
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-semibold mb-3">
             <MapIcon size={16} /> Interactive Master Plan
           </div>
-          <h1 className="text-4xl font-extrabold tracking-tight text-slate-900">Aman Berki Estates</h1>
+          <h1 className="text-4xl font-extrabold tracking-tight text-slate-900">Aman Berki Properties</h1>
         </div>
 
         {/* Feature 3: Block Search */}
@@ -583,92 +580,112 @@ export default function HomePage() {
               <p className="text-sm text-slate-500 font-medium mt-0.5">Click any block to view property details</p>
             </div>
 
-            <div className="flex items-center gap-3 flex-wrap">
-              {/* Status filter */}
-              <div className="flex bg-slate-100/80 p-1 rounded-xl border border-slate-200/60">
-                {(["all", "available", "sold", "reserved", "under-construction"] as const).map(f => (
-                  <button key={f} onClick={() => setFilter(f)}
-                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${filter === f ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}>
-                    {f === "all" ? "All" : STATUS_LABELS[f as PropertyStatus]}
+            {/* ── Toolbar: super_admin only — others get DWG download ─── */}
+            {!roleLoading && isSuperAdmin ? (
+              <div className="flex items-center gap-3 flex-wrap">
+                {/* Status filter */}
+                <div className="flex bg-slate-100/80 p-1 rounded-xl border border-slate-200/60">
+                  {(["all", "available", "sold", "reserved", "under-construction"] as const).map(f => (
+                    <button key={f} onClick={() => setFilter(f)}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${filter === f ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}>
+                      {f === "all" ? "All" : STATUS_LABELS[f as PropertyStatus]}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Analytics tools */}
+                {permissions.canUseAnalytics && (
+                  <>
+                    <div className="w-px h-7 bg-slate-200" />
+                    <button onClick={() => setViewMode(v => v === "heatmap" ? "status" : "heatmap")}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${viewMode === "heatmap" ? "bg-orange-500 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
+                      <Thermometer size={12} /> Heatmap
+                    </button>
+                    <button onClick={() => setViewMode(v => v === "zone" ? "status" : "zone")}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${viewMode === "zone" ? "bg-indigo-500 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
+                      <Layers size={12} /> Zones
+                    </button>
+                    <button onClick={() => setTimelineActive(v => !v)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${timelineActive ? "bg-violet-500 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
+                      <BarChart3 size={12} /> Timeline
+                    </button>
+                  </>
+                )}
+
+                {/* Bulk Select */}
+                {permissions.canBulkUpdateStatus && (
+                  <button onClick={() => { setSelectionMode(v => !v); setSelectedBlocks(new Set()); }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${selectionMode ? "bg-[#0086D1] text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
+                    <CheckSquare size={12} /> Select
                   </button>
-                ))}
+                )}
+
+                {/* Labels toggle */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowLabels(v => !v)}
+                  className={`font-bold text-xs rounded-xl gap-1.5 ${showLabels ? "bg-slate-900 text-white border-slate-900" : "border-slate-200 text-slate-600"}`}
+                >
+                  {showLabels ? <Eye size={13} /> : <EyeOff size={13} />}
+                  {showLabels ? "Labels On" : "Labels Off"}
+                </Button>
+
+                {/* Draw Blocks */}
+                {permissions.canDrawBlocks && (
+                  <>
+                    <div className="w-px h-7 bg-slate-200" />
+                    <Button
+                      variant={editMode ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => { setEditMode(!editMode); setDraftPoints([]); }}
+                      className={`font-bold text-xs rounded-xl ${!editMode && "border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+                    >
+                      {editMode ? "Exit Draw Mode" : "✏️ Draw Blocks"}
+                    </Button>
+                  </>
+                )}
+
+                <div className="w-px h-7 bg-slate-200" />
+
+                {/* Print */}
+                {permissions.canExportPrint && (
+                  <button onClick={handlePrint} title="Print / Export Map"
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all print:hidden">
+                    <Printer size={12} /> Print
+                  </button>
+                )}
+
+                {/* Compare */}
+                <button onClick={() => setShowCompare(v => !v)} title="Compare blocks"
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${showCompare || compareBlocks.length > 0 ? "bg-teal-500 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
+                  <GitCompare size={12} /> Compare{compareBlocks.length > 0 ? ` (${compareBlocks.length})` : ""}
+                </button>
+
+                {/* Fullscreen */}
+                <button onClick={toggleFullscreen} title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all">
+                  {isFullscreen ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+                  {isFullscreen ? "Exit" : "Fullscreen"}
+                </button>
               </div>
-
-              {/* Analytics tools — hidden for user role */}
-              {!roleLoading && permissions.canUseAnalytics && (
-                <>
-                  <div className="w-px h-7 bg-slate-200" />
-                  {/* Heatmap */}
-                  <button onClick={() => setViewMode(v => v === "heatmap" ? "status" : "heatmap")}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${viewMode === "heatmap" ? "bg-orange-500 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
-                    <Thermometer size={12} /> Heatmap
-                  </button>
-                  {/* Zone */}
-                  <button onClick={() => setViewMode(v => v === "zone" ? "status" : "zone")}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${viewMode === "zone" ? "bg-indigo-500 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
-                    <Layers size={12} /> Zones
-                  </button>
-                  {/* Timeline */}
-                  <button onClick={() => setTimelineActive(v => !v)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${timelineActive ? "bg-violet-500 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
-                    <BarChart3 size={12} /> Timeline
-                  </button>
-                </>
-              )}
-              {/* Bulk Select — super_admin + admin only */}
-              {!roleLoading && permissions.canBulkUpdateStatus && (
-                <button onClick={() => { setSelectionMode(v => !v); setSelectedBlocks(new Set()); }}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${selectionMode ? "bg-[#0086D1] text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
-                  <CheckSquare size={12} /> Select
-                </button>
-              )}
-
-              {/* Feature 4: Always-On Labels toggle */}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowLabels(v => !v)}
-                className={`font-bold text-xs rounded-xl gap-1.5 ${showLabels ? "bg-slate-900 text-white border-slate-900" : "border-slate-200 text-slate-600"}`}
+            ) : (
+              /* Download Site Map DWG — visible to admin / user roles */
+              <a
+                href="/Tulu Dimtu Sitmap.dwg"
+                download="Tulu Dimtu Sitmap.dwg"
+                className="group flex items-center gap-3 px-5 py-2.5 rounded-xl border-2 border-dashed border-slate-300 hover:border-[#0086D1] bg-slate-50 hover:bg-blue-50 transition-all duration-200"
               >
-                {showLabels ? <Eye size={13} /> : <EyeOff size={13} />}
-                {showLabels ? "Labels On" : "Labels Off"}
-              </Button>
-
-              {/* Draw Blocks — super_admin only */}
-              {!roleLoading && permissions.canDrawBlocks && (
-                <>
-                  <div className="w-px h-7 bg-slate-200" />
-                  <Button
-                    variant={editMode ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => { setEditMode(!editMode); setDraftPoints([]); }}
-                    className={`font-bold text-xs rounded-xl ${!editMode && "border-slate-200 text-slate-600 hover:bg-slate-50"}`}
-                  >
-                    {editMode ? "Exit Draw Mode" : "✏️ Draw Blocks"}
-                  </Button>
-                </>
-              )}
-
-              <div className="w-px h-7 bg-slate-200" />
-              {/* Print — admin + super_admin */}
-              {!roleLoading && permissions.canExportPrint && (
-                <button onClick={handlePrint} title="Print / Export Map"
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all print:hidden">
-                  <Printer size={12} /> Print
-                </button>
-              )}
-              {/* Compare — all roles */}
-              <button onClick={() => setShowCompare(v => !v)} title="Compare blocks"
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${showCompare || compareBlocks.length > 0 ? "bg-teal-500 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
-                <GitCompare size={12} /> Compare{compareBlocks.length > 0 ? ` (${compareBlocks.length})` : ""}
-              </button>
-              {/* Feature 10: Fullscreen */}
-              <button onClick={toggleFullscreen} title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all">
-                {isFullscreen ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
-                {isFullscreen ? "Exit" : "Fullscreen"}
-              </button>
-            </div>
+                <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-white border border-slate-200 group-hover:border-[#0086D1] group-hover:bg-[#0086D1]/10 transition-all shadow-sm">
+                  <FileDown size={18} className="text-slate-500 group-hover:text-[#0086D1] transition-colors" />
+                </div>
+                <div className="text-left">
+                  <p className="text-sm font-bold text-slate-800 group-hover:text-[#0086D1] transition-colors leading-tight">Download Site Map</p>
+                  <p className="text-xs text-slate-400 font-medium">Tulu Dimtu Sitmap.dwg · AutoCAD</p>
+                </div>
+                <Download size={14} className="ml-1 text-slate-400 group-hover:text-[#0086D1] transition-colors" />
+              </a>
+            )}
           </div>
 
           {/* Edit Mode Toolbar */}
@@ -738,7 +755,7 @@ export default function HomePage() {
             <div className="px-5 py-4 bg-violet-50 border-b border-violet-200">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-bold text-violet-800">📅 Sales Timeline — as of <span className="text-violet-600">{MONTHS[timelineMonth]}</span></span>
-                <span className="text-xs font-semibold text-violet-600">{counts.sold + counts.reserved} units sold/reserved by this date</span>
+                <span className="text-xs font-semibold text-violet-600">{salesByMonth.slice(0, timelineMonth + 1).reduce((a, b) => a + b, 0)} plots sold/reserved by this date</span>
               </div>
               <div className="flex items-end gap-0.5 h-10 mb-2">
                 {salesByMonth.map((n, i) => (
@@ -787,9 +804,9 @@ export default function HomePage() {
               style={{ transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`, transformOrigin: "0 0", transition: isPanning ? "none" : "transform 0.05s ease-out" }}
             >
               <Image
-                src="/photo_2025-10-23_10-45-31 (2).jpg"
-                alt="Aman Berki Estates Site Map"
-                width={1456} height={816}
+                src="/tuludimtu.png"
+                alt="Aman Berki Properties Site Map"
+                width={1672} height={941}
                 className={`w-full h-auto block ${editMode ? "opacity-90" : ""}`}
                 priority draggable={false}
               />
@@ -800,15 +817,7 @@ export default function HomePage() {
                 preserveAspectRatio="none"
                 className="absolute inset-0 w-full h-full"
               >
-                <defs>
-                  <style>{`
-                    @keyframes pulse-ring {
-                      0%,100% { opacity: 0.5; stroke-width: 0.2; }
-                      50% { opacity: 1; stroke-width: 0.5; }
-                    }
-                    .nearby-pulse { animation: pulse-ring 1.4s ease-in-out infinite; }
-                  `}</style>
-                </defs>
+                <defs />
                 {hotspots.map((hs, idx) => {
                   const isHovered = hoveredBlock === hs.id;
                   const isSearched = searchHighlight === hs.id;
@@ -817,16 +826,15 @@ export default function HomePage() {
                   const centroid = getCentroid(hs.points);
                   const showLabel = (showLabels || isHovered || isSearched || isEditingThis || selectedBlocks.has(hs.id)) && !isDimmed;
 
-                  const isNearby = !isHovered && nearbyBlockIds.has(hs.id) && !isDimmed && hoveredBlock !== null;
+                  const isNearby = false;
 
                   return (
                     <g key={hs.shape_id || `hs-${idx}`}>
                       <polygon
                         points={hs.points.map(p => `${p.x},${p.y}`).join(" ")}
                         fill={getBlockColor(hs.id, isHovered, isSearched)}
-                        stroke={isNearby ? STATUS_COLORS[getEffectiveStatus(hs.id)] : getBlockBorder(hs.id, isHovered, isEditingThis, isSearched)}
-                        strokeWidth={isHovered || isEditingThis || isSearched ? 0.35 : isNearby ? 0.3 : 0.15}
-                        className={isNearby ? "nearby-pulse" : ""}
+                        stroke={getBlockBorder(hs.id, isHovered, isEditingThis, isSearched)}
+                        strokeWidth={isHovered || isEditingThis || isSearched ? 0.35 : 0.15}
                         style={{ cursor: "pointer", transition: "fill 0.4s ease, opacity 0.4s ease" }}
                         opacity={isDimmed ? 0.35 : 1}
                         onMouseEnter={e => {
@@ -900,27 +908,71 @@ export default function HomePage() {
             {tooltip && hoveredBlock && !editMode && !drawerBlock && (() => {
               const prop = getLocalProp(hoveredBlock);
               if (!prop) return null;
+
+              // ── Edge-aware positioning ────────────────────────────────
+              // Tooltip is ~280px wide and ~160px tall (approx).
+              const TW = 288;   // tooltip width
+              const TH = 168;   // tooltip approx height incl. arrow
+              const MARGIN = 12; // min px gap from container edge
+
+              const container = mapImageRef.current;
+              const cw = container?.offsetWidth  ?? 800;
+              const ch = container?.offsetHeight ?? 600;
+
+              // Horizontal: center on block centroid, clamp within container
+              let left = tooltip.x - TW / 2;
+              left = Math.max(MARGIN, Math.min(left, cw - TW - MARGIN));
+
+              // Vertical: show above by default; flip below if near top
+              const showBelow = tooltip.y < TH + MARGIN;
+              const top = showBelow ? tooltip.y + 20 : tooltip.y - TH - 8;
+
+              // Arrow tracks original centroid x within the (possibly shifted) tooltip
+              const arrowLeft = Math.min(Math.max(tooltip.x - left, 16), TW - 16);
+
               return (
-                <div className="absolute z-50 bg-slate-900 border border-slate-700 shadow-2xl rounded-2xl p-4 text-sm whitespace-nowrap pointer-events-none transform -translate-x-1/2 -translate-y-[calc(100%+20px)]"
-                  style={{ left: tooltip.x, top: tooltip.y }}>
-                  <div className="font-bold text-base mb-1 text-white">Block {prop.blockNumber} — {prop.noOfPlots} Plots</div>
-                  <div className="flex flex-col gap-1.5 mb-3 text-slate-300 text-xs font-medium">
-                    <div className="flex items-center gap-3">
-                      <span className="font-bold" style={{ color: STATUS_COLORS[prop.status] }}>● {STATUS_LABELS[prop.status]}</span>
-                      <span>📐 {prop.area} m²</span>
-                      <span>{prop.primaryPlots}</span>
-                    </div>
-                    <div className="flex items-center gap-2 mt-0.5 bg-slate-800 px-2.5 py-1 rounded-lg">
-                      <span className="font-bold text-emerald-400">{prop.activePlots} Available</span>
-                      <span className="text-slate-600">|</span>
-                      <span className="font-bold text-red-400">{prop.soldPlots} Sold</span>
-                    </div>
+                <div
+                  className="absolute z-50 bg-slate-900 border border-slate-700 shadow-2xl rounded-2xl p-4 text-sm pointer-events-none"
+                  style={{ left, top, width: TW }}
+                >
+                  {/* Title */}
+                  <div className="font-extrabold text-base text-white truncate mb-2">
+                    Block {prop.blockLabel ?? prop.blockNumber} — {prop.noOfPlots} Plots
                   </div>
-                  <div className="text-white font-extrabold text-xl">{prop.price > 0 ? `$${prop.price.toLocaleString()}` : "Unlisted"}</div>
-                  <div className="mt-2 text-[10px] text-slate-400 text-center uppercase tracking-widest font-bold bg-slate-800 py-1.5 rounded-md">
+
+                  {/* Area */}
+                  <div className="text-slate-400 text-xs font-semibold mb-2">
+                    📐 {prop.area.toLocaleString()} m²
+                    {prop.plotSize ? <span className="ml-2 text-slate-500">· {prop.plotSize} m²/plot</span> : null}
+                  </div>
+
+                  {/* Available | Sold bar */}
+                  <div className="flex items-center gap-2 bg-slate-800 px-2.5 py-1.5 rounded-lg mb-3">
+                    <span className="font-bold text-emerald-400">{prop.activePlots} Available</span>
+                    <span className="text-slate-600">|</span>
+                    <span className="font-bold text-red-400">{prop.soldPlots} Sold</span>
+                  </div>
+
+                  {/* Price */}
+                  <div className="text-white font-extrabold text-xl">
+                    {prop.price > 0
+                      ? prop.priceMax && prop.priceMax > prop.price
+                        ? `ETB ${(prop.price / 1_000_000).toFixed(1)}M – ${(prop.priceMax / 1_000_000).toFixed(1)}M`
+                        : `ETB ${prop.price.toLocaleString()}`
+                      : <span className="text-slate-500 text-base font-semibold">Price not set</span>
+                    }
+                  </div>
+
+                  {/* CTA */}
+                  <div className="mt-2.5 text-[10px] text-slate-400 text-center uppercase tracking-widest font-bold bg-slate-800 py-1.5 rounded-md">
                     Click to open details →
                   </div>
-                  <div className="absolute left-1/2 -bottom-2 -translate-x-1/2 w-4 h-4 bg-slate-900 rotate-45 border-r border-b border-slate-700" />
+
+                  {/* Dynamic arrow */}
+                  {showBelow
+                    ? <div className="absolute -top-2 w-4 h-4 bg-slate-900 rotate-45 border-l border-t border-slate-700" style={{ left: arrowLeft - 8 }} />
+                    : <div className="absolute -bottom-2 w-4 h-4 bg-slate-900 rotate-45 border-r border-b border-slate-700" style={{ left: arrowLeft - 8 }} />
+                  }
                 </div>
               );
             })()}
@@ -970,9 +1022,9 @@ export default function HomePage() {
             {showMinimap && hotspots.length > 0 && (
               <div className="absolute bottom-4 left-4 z-30 rounded-xl overflow-hidden shadow-xl border-2 border-white/80 bg-slate-900" style={{ width: 140, height: 79 }}>
                 <Image
-                  src="/photo_2025-10-23_10-45-31 (2).jpg"
+                  src="/tuludimtu.png"
                   alt="Minimap"
-                  width={280} height={157}
+                  width={1672} height={941}
                   className="w-full h-full object-cover opacity-70"
                   draggable={false}
                 />
@@ -1021,7 +1073,7 @@ export default function HomePage() {
 
           {/* Footer */}
           <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-between items-center text-xs font-medium text-slate-500">
-            <span>🧭 North ↑ · Scale 1:2500 · Aman Berki Estates Master Plan</span>
+            <span>🧭 North ↑ · Scale 1:2500 · Aman Berki Properties Master Plan</span>
             <span>{hotspots.length} / {properties.length} mapped</span>
           </div>
         </Card>
@@ -1038,16 +1090,15 @@ export default function HomePage() {
       <div className={`fixed top-0 right-0 h-full w-[420px] max-w-[95vw] bg-white shadow-2xl z-[100] flex flex-col transition-transform duration-300 ease-in-out ${drawerBlock ? "translate-x-0" : "translate-x-full"}`}>
         {drawerProp && (
           <>
-            {/* Drawer header */}
-            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 shrink-0" style={{ borderTop: `4px solid ${STATUS_COLORS[drawerProp.status]}` }}>
+            {/* ── Pinned header ── */}
+            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 shrink-0">
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full text-white" style={{ background: STATUS_COLORS[drawerProp.status] }}>
-                    {STATUS_LABELS[drawerProp.status]}
-                  </span>
-                  <span className="text-xs text-slate-500 font-semibold">Zone {drawerProp.zone}</span>
+                  <span className="text-xs text-slate-500 font-semibold">{drawerProp.zone}</span>
                 </div>
-                <h2 className="text-xl font-extrabold text-slate-900">Block {drawerProp.blockNumber} — {drawerProp.noOfPlots} Plots</h2>
+                <h2 className="text-xl font-extrabold text-slate-900">
+                  Block {drawerProp.blockLabel ?? drawerProp.blockNumber} — {drawerProp.noOfPlots} Plots
+                </h2>
                 <p className="text-sm text-slate-500 font-medium mt-0.5">{drawerProp.primaryPlots}</p>
               </div>
               <button onClick={() => { setDrawerBlock(null); setSearchHighlight(null); setSearchQuery(""); setHoveredBlock(null); }}
@@ -1056,82 +1107,82 @@ export default function HomePage() {
               </button>
             </div>
 
-            {/* Price */}
-            <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 shrink-0">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">Listed Value</p>
-              <p className="text-3xl font-extrabold text-primary">{drawerProp.price > 0 ? `$${drawerProp.price.toLocaleString()}` : "Unlisted"}</p>
-              {drawerProp.price > 0 && <p className="text-xs text-slate-500 font-medium mt-0.5">${Math.round(drawerProp.price / drawerProp.area).toLocaleString()} / m²</p>}
-            </div>
+            {/* ── Scrollable body ── */}
+            <div className="flex-1 overflow-y-auto">
 
-            {/* Key stats */}
-            <div className="px-6 py-5 grid grid-cols-2 gap-4 border-b border-slate-100 shrink-0">
-              {[
-                { label: "Total Plots", value: drawerProp.noOfPlots },
-                { label: "Active Plots", value: drawerProp.activePlots },
-                { label: "Total Area", value: `${drawerProp.area} m²` },
-                { label: "Plot Size", value: `${drawerProp.plotSize} m²` },
-                { label: "Sold Plots", value: drawerProp.soldPlots },
-                { label: "Buffer Plots", value: drawerProp.noOfBufferPlots },
-              ].map(({ label, value }) => (
-                <div key={label} className="bg-slate-50 rounded-xl p-3 text-center border border-slate-100">
-                  <p className="text-xs text-slate-500 font-medium mb-1">{label}</p>
-                  <p className="text-base font-extrabold text-slate-900">{value}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* Visual Plot Matrix */}
-            <div className="px-6 py-5 border-b border-slate-100 shrink-0 bg-slate-50/30">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Plots Map Breakdown</p>
-                <span className="text-[10px] bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full font-bold">
-                  {drawerProp.soldPlots} Sold / {drawerProp.activePlots} Avail
-                </span>
+              {/* Price */}
+              <div className="px-6 py-4 bg-slate-50 border-b border-slate-100">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">Listed Value</p>
+                <p className="text-3xl font-extrabold text-primary">
+                  {drawerProp.price > 0
+                    ? drawerProp.priceMax && drawerProp.priceMax > drawerProp.price
+                      ? `ETB ${(drawerProp.price / 1_000_000).toFixed(1)}M – ${(drawerProp.priceMax / 1_000_000).toFixed(1)}M`
+                      : `ETB ${drawerProp.price.toLocaleString()}`
+                    : "Price not set"
+                  }
+                </p>
+                {drawerProp.price > 0 && drawerProp.area > 0 && (
+                  <p className="text-xs text-slate-500 font-medium mt-0.5">
+                    ETB {Math.round(drawerProp.price / drawerProp.area).toLocaleString()} / m²
+                  </p>
+                )}
               </div>
-              <BlockPlotsList key={drawerProp.id} blockId={drawerProp.id} />
-            </div>
 
-            {/* Description */}
-            <div className="px-6 py-5 border-b border-slate-100 flex-1 overflow-y-auto">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Description</p>
-              <p className="text-sm text-slate-600 leading-relaxed mb-4">{drawerProp.description}</p>
+              {/* Key stats */}
+              <div className="px-6 py-5 grid grid-cols-2 gap-4 border-b border-slate-100">
+                {[
+                  { label: "Total Plots",  value: drawerProp.noOfPlots },
+                  { label: "Active Plots", value: drawerProp.activePlots },
+                  { label: "Total Area",   value: `${drawerProp.area.toLocaleString()} m²` },
+                  { label: "Plot Size",    value: drawerProp.plotSize ? `${drawerProp.plotSize} m²` : "—" },
+                  { label: "Sold Plots",   value: drawerProp.soldPlots },
+                  { label: "Buffer Plots", value: drawerProp.noOfBufferPlots },
+                ].map(({ label, value }) => (
+                  <div key={label} className="bg-slate-50 rounded-xl p-3 text-center border border-slate-100">
+                    <p className="text-xs text-slate-500 font-medium mb-1">{label}</p>
+                    <p className="text-base font-extrabold text-slate-900">{value}</p>
+                  </div>
+                ))}
+              </div>
 
-              {drawerProp.remark && (
-                <>
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Remarks</p>
-                  <p className="text-sm text-slate-800 leading-relaxed bg-amber-50 p-3 rounded-xl border border-amber-200">{drawerProp.remark}</p>
-                </>
+              {/* Visual Plot Matrix */}
+              <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/30">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Plots Map Breakdown</p>
+                  <span className="text-[10px] bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full font-bold">
+                    {drawerProp.soldPlots} Sold / {drawerProp.activePlots} Avail
+                  </span>
+                </div>
+                <BlockPlotsList key={drawerProp.id} blockId={drawerProp.id} />
+              </div>
+
+              {/* Description */}
+              {(drawerProp.description || drawerProp.remark) && (
+                <div className="px-6 py-5 border-b border-slate-100">
+                  {drawerProp.description && (
+                    <>
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Description</p>
+                      <p className="text-sm text-slate-600 leading-relaxed mb-4">{drawerProp.description}</p>
+                    </>
+                  )}
+                  {drawerProp.remark && (
+                    <>
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Remarks</p>
+                      <p className="text-sm text-slate-800 leading-relaxed bg-amber-50 p-3 rounded-xl border border-amber-200">{drawerProp.remark}</p>
+                    </>
+                  )}
+                </div>
               )}
-            </div>
 
-            {/* CTA */}
-            <div className="px-6 py-5 shrink-0 border-t border-slate-100 space-y-2">
+            </div>{/* end scrollable body */}
+
+            {/* ── Pinned CTA ── */}
+            <div className="px-6 py-4 shrink-0 border-t border-slate-100 bg-white">
               <Button
                 className="w-full py-5 font-bold rounded-xl bg-[#0086D1] hover:bg-[#006daa] text-white gap-2"
                 onClick={() => router.push(`/property/${drawerProp.id}`)}
               >
                 View Full Details <ArrowRight size={16} />
-              </Button>
-              <div className="grid grid-cols-2 gap-2">
-                {/* Feature 11: Copy shareable link */}
-                <button
-                  onClick={() => { navigator.clipboard.writeText(window.location.href); }}
-                  className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all">
-                  <Link2 size={13} /> Copy Link
-                </button>
-                {/* Feature 12: Add to comparison */}
-                <button
-                  onClick={() => { toggleCompare(drawerProp.blockNumber); setShowCompare(true); }}
-                  className={`flex items-center justify-center gap-1.5 py-2.5 rounded-xl border text-xs font-bold transition-all ${compareBlocks.includes(drawerProp.blockNumber)
-                    ? "bg-teal-500 text-white border-teal-500"
-                    : "border-slate-200 text-slate-600 hover:bg-slate-50"
-                    }`}>
-                  <GitCompare size={13} />
-                  {compareBlocks.includes(drawerProp.blockNumber) ? "Remove" : "Compare"}
-                </button>
-              </div>
-              <Button variant="outline" className="w-full py-3 font-bold rounded-xl border-slate-200 text-xs" onClick={() => setDrawerBlock(null)}>
-                Close
               </Button>
             </div>
           </>

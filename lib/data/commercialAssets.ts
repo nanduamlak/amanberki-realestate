@@ -44,9 +44,9 @@ export const COMMERCIAL_ASSETS: CommercialAsset[] = [
     location: "Bole Rwanda, Addis Ababa",
     description: "Premium commercial and office complex situated in the Bole Rwanda area, optimized for business client rentals under Prime One Real Estate.",
     image: "/bole_rwanda.jpg",
-    category: "Commercial Office Building",
+    category: "Retail Shops",
     attachments: [
-      { name: "BIRHANU Lease Document", url: "/BIRHANU.pdf", type: "pdf" }
+      { name: "Bole Rwanda Building Lease Document", url: "/BIRHANU.pdf", type: "pdf" }
     ],
     rooms: [
       {
@@ -282,7 +282,7 @@ export const COMMERCIAL_ASSETS: CommercialAsset[] = [
     location: "CMC, Addis Ababa",
     description: "Multifaceted educational and commercial rental asset located in CMC, housing prominent entities with long-term tenant history.",
     image: "/cmc.jpg",
-    category: "Commercial / Educational Asset",
+    category: "Commercial Building",
     attachments: [
       { name: "Tenant Lease History Document", url: "/TENANT_HISTORY.docx", type: "docx" }
     ],

@@ -3,7 +3,8 @@ import React, { useState, useMemo, use } from "react";
 import { useRole } from "@/lib/RoleContext";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { usePlotStore, BLANK_PLOT, HOUSE_TYPES, DEED_STATUSES, CONSTRUCTION_STATUSES, type PlotDetail } from "@/lib/usePlotStore";
+import { usePlotStore, BLANK_PLOT, HOUSE_TYPES, DEED_STATUSES, CONSTRUCTION_STATUSES, PLOT_AMENITIES, type PlotDetail } from "@/lib/usePlotStore";
+
 import { usePropertyStore } from "@/lib/usePropertyStore";
 import type { PaymentRecord } from "@/lib/data/properties";
 import { Plus, Pencil, Trash2, X, Save, ArrowLeft, RotateCcw, BedDouble, Bath, Car, Home, ShieldCheck, Search, Filter, ExternalLink, DollarSign, CalendarClock, CheckCircle2, AlertCircle } from "lucide-react";
@@ -60,44 +61,81 @@ export default function PlotManagementPage({ params }: { params: Promise<{ id: s
   const [formTarget, setFormTarget]   = useState<PlotDetail | null>(null);
   const [isNew, setIsNew]             = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
-  const [search, setSearch]           = useState("");
-  const [deedFilter, setDeedFilter]   = useState("all");
-  const [constFilter, setConstFilter] = useState("all");
-  const [houseFilter, setHouseFilter] = useState("all");
+  const [search, setSearch]               = useState("");
+  const [deedFilter, setDeedFilter]         = useState("all");
+  const [constFilter, setConstFilter]       = useState("all");
+  const [contractorFilter, setContractorFilter] = useState("all");
+  const [houseFilter, setHouseFilter]       = useState("all");
 
-  /* summary stats */
-  const stats = useMemo(() => ({
-    total: plots.length,
-    withBuyer: plots.filter(p => p.purchaserName).length,
-    deedIssued: plots.filter(p => p.titleDeedsStatus === "issued").length,
-    built: plots.filter(p => p.constructionStatus && !["", "Bare Land"].includes(p.constructionStatus)).length,
-  }), [plots]);
+  // ── Derive unique filter options from actual plot data ──────
+  // This guarantees the dropdowns always reflect what's in the DB
+  const deedOptions = useMemo(() => {
+    const vals = new Set<string>();
+    plots.forEach(p => { if (p.titleDeedsStatus?.trim()) vals.add(p.titleDeedsStatus.trim()); });
+    return Array.from(vals).sort();
+  }, [plots]);
 
+  const constOptions = useMemo(() => {
+    const vals = new Set<string>();
+    plots.forEach(p => { if (p.constructionStatus?.trim()) vals.add(p.constructionStatus.trim()); });
+    return Array.from(vals).sort();
+  }, [plots]);
+
+  const contractorOptions = useMemo(() => {
+    const vals = new Set<string>();
+    plots.forEach(p => { if (p.contractorName?.trim()) vals.add(p.contractorName.trim()); });
+    return Array.from(vals).sort();
+  }, [plots]);
+
+  const houseOptions = useMemo(() => {
+    const vals = new Set<string>();
+    plots.forEach(p => { if (p.houseType?.trim()) vals.add(p.houseType.trim()); });
+    return Array.from(vals).sort();
+  }, [plots]);
+
+  // ── Filtered list ────────────────────────────────────────────
   const filtered = useMemo(() => {
     let data = [...plots];
-    if (deedFilter  !== "all") data = data.filter(p => p.titleDeedsStatus === deedFilter);
-    if (constFilter !== "all") data = data.filter(p => p.constructionStatus === constFilter);
-    if (houseFilter !== "all") data = data.filter(p => p.houseType === houseFilter);
+    if (deedFilter       !== "all") data = data.filter(p => (p.titleDeedsStatus  ?? "").trim().toLowerCase() === deedFilter.toLowerCase());
+    if (constFilter      !== "all") data = data.filter(p => (p.constructionStatus ?? "").trim().toLowerCase() === constFilter.toLowerCase());
+    if (contractorFilter !== "all") data = data.filter(p => (p.contractorName    ?? "").trim().toLowerCase() === contractorFilter.toLowerCase());
+    if (houseFilter      !== "all") data = data.filter(p => (p.houseType         ?? "").trim().toLowerCase() === houseFilter.toLowerCase());
     if (search) {
       const q = search.toLowerCase();
       data = data.filter(p =>
-        p.plotNumber.includes(q) ||
-        p.purchaserName.toLowerCase().includes(q) ||
-        (p.houseType ?? "").toLowerCase().includes(q) ||
+        p.plotNumber.toLowerCase().includes(q) ||
+        (p.purchaserName  ?? "").toLowerCase().includes(q) ||
+        (p.contractorName ?? "").toLowerCase().includes(q) ||
+        (p.houseType      ?? "").toLowerCase().includes(q) ||
         (p.constructionStatus ?? "").toLowerCase().includes(q)
       );
     }
-    // Sort numerically: "1","2"..."10" instead of "1","10","2"
     data.sort((a, b) => {
       const na = parseInt(a.plotNumber, 10);
       const nb = parseInt(b.plotNumber, 10);
       if (!isNaN(na) && !isNaN(nb)) return na - nb;
-      if (!isNaN(na)) return -1;  // numbers before non-numeric (e.g. "A")
+      if (!isNaN(na)) return -1;
       if (!isNaN(nb)) return 1;
       return a.plotNumber.localeCompare(b.plotNumber);
     });
     return data;
-  }, [plots, search, deedFilter, constFilter, houseFilter]);
+  }, [plots, search, deedFilter, constFilter, contractorFilter, houseFilter]);
+
+  // ── Summary stats (always from full plots list, not filtered) ─
+  // A plot is considered "sold" when the purchaser is a real buyer
+  // (not the company itself, which owns unsold plots)
+  const COMPANY_NAMES = ["tulu dimtu real estate", "tulu dimtu"];
+  const isSold = (p: PlotDetail) => {
+    const name = (p.purchaserName ?? "").trim().toLowerCase();
+    return name !== "" && !COMPANY_NAMES.some(c => name.includes(c));
+  };
+  const stats = useMemo(() => ({
+    total:      plots.length,
+    sold:       plots.filter(isSold).length,
+    available:  plots.filter(p => !isSold(p)).length,
+    deedIssued: plots.filter(p => (p.titleDeedsStatus ?? "").trim().toUpperCase() === "ISSUED").length,
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [plots]);
 
   const nextPlotNumber = () => {
     const nums = plots.map(p => parseInt(p.plotNumber) || 0);
@@ -130,19 +168,21 @@ export default function PlotManagementPage({ params }: { params: Promise<{ id: s
     const ps = [...(formTarget.paymentSchedule || [])];
     const item = { ...ps[idx], [key]: val };
 
-    if (!item.termType) {
-      item.termType = "one_term";
-    }
+    if (!item.termType) item.termType = "one_term";
 
-    const total = Number(item.totalAmount) || 0;
+    const total      = Number(item.totalAmount)  || 0;
+    const downPaid   = Number(item.downPayment)  || 0;
+    // Installments = what still needs to be paid via terms
+    const installments = Math.max(0, total - downPaid);
 
     if (item.termType === "one_term") {
-      if (key === "totalAmount") {
-        item.amount = total;
+      // Auto-set term amount to computed installment value
+      if (key === "totalAmount" || key === "downPayment") {
+        item.amount = installments;
       }
-      
+
       const toBePaid = Number(item.amount) || 0;
-      
+
       if (item.status === "paid") {
         item.remainingAmount = 0;
         item.paidAmount = toBePaid;
@@ -150,14 +190,19 @@ export default function PlotManagementPage({ params }: { params: Promise<{ id: s
           item.paidDate = new Date().toISOString().split("T")[0];
         }
       } else {
-        item.remainingAmount = total;
+        item.remainingAmount = toBePaid;
         item.paidAmount = 0;
         item.paidDate = undefined;
       }
     } else {
-      if (key === "totalAmount" || key === "amount") {
+      // two_term: split installments across terms
+      if (key === "totalAmount" || key === "downPayment") {
+        // Reset term1 to full installment; term2 auto-derives from amount
+        item.amount = installments;
+        item.amountTerm2 = 0;
+      } else if (key === "amount") {
         const term1 = Number(item.amount) || 0;
-        item.amountTerm2 = Math.max(0, total - term1);
+        item.amountTerm2 = Math.max(0, installments - term1);
       }
 
       if (item.status === "paid" && !item.paidDate) {
@@ -351,6 +396,46 @@ export default function PlotManagementPage({ params }: { params: Promise<{ id: s
               </Field>
             </div>
 
+            {/* Amenities */}
+            <div className="border-t border-slate-100 pt-6">
+              <p className="text-[11px] font-black uppercase tracking-wider text-[#0086D1] mb-3">Property Amenities</p>
+              <p className="text-xs text-slate-400 mb-4">Select which amenities apply to this plot</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {PLOT_AMENITIES.map(amenity => {
+                  const checked = (formTarget.amenities ?? []).includes(amenity);
+                  return (
+                    <button
+                      key={amenity}
+                      type="button"
+                      onClick={() => {
+                        const current = formTarget.amenities ?? [];
+                        const next = checked
+                          ? current.filter(a => a !== amenity)
+                          : [...current, amenity];
+                        s("amenities", next);
+                      }}
+                      className={`flex items-center gap-2.5 px-4 py-3 rounded-xl border-2 text-sm font-semibold transition-all select-none ${
+                        checked
+                          ? "border-[#0086D1] bg-[#0086D1]/8 text-[#0086D1]"
+                          : "border-slate-200 bg-slate-50 text-slate-400 hover:border-slate-300"
+                      }`}
+                    >
+                      <span className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition-all ${
+                        checked ? "bg-[#0086D1] border-[#0086D1]" : "bg-white border-slate-300"
+                      }`}>
+                        {checked && (
+                          <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                            <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        )}
+                      </span>
+                      {amenity}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
           </div>
 
           {/* Payment Schedule Card */}
@@ -394,7 +479,7 @@ export default function PlotManagementPage({ params }: { params: Promise<{ id: s
                     <X size={16} />
                   </button>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pr-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pr-6">
                     <Field label="Currency *">
                       <input className={INPUT + " py-1.5 text-xs font-bold"} value={pay.currency || "ETB"}
                         onChange={e => handlePaymentFieldChange(idx, "currency", e.target.value)} />
@@ -411,14 +496,36 @@ export default function PlotManagementPage({ params }: { params: Promise<{ id: s
                         onChange={e => handlePaymentFieldChange(idx, "totalAmount", e.target.value ? Number(e.target.value) : undefined)}
                         placeholder="e.g. 2500000" />
                     </Field>
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Remaining Balance</label>
-                      <div className="w-full px-3 py-1.5 text-xs bg-slate-100 border border-slate-200 rounded-xl font-extrabold text-slate-700 flex items-center justify-between">
-                        <span>{pay.currency} {(pay.remainingAmount ?? 0).toLocaleString()}</span>
-                        <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold bg-white px-2 py-0.5 rounded border border-slate-200">Auto</span>
+                    <Field label="Paid Amount">
+                      <input
+                        className={INPUT + " py-1.5 text-xs font-bold text-emerald-700 border-emerald-200 focus:border-emerald-400"}
+                        type="number"
+                        value={pay.downPayment ?? ""}
+                        onChange={e => handlePaymentFieldChange(idx, "downPayment", e.target.value ? Number(e.target.value) : undefined)}
+                        placeholder="0"
+                      />
+                    </Field>
+                  </div>
+
+                  {/* Installment summary bar */}
+                  {(pay.totalAmount ?? 0) > 0 && (
+                    <div className="flex flex-wrap items-center gap-3 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold">
+                      <span className="text-slate-500">Agreement:</span>
+                      <span className="font-extrabold text-slate-800">{pay.currency} {(pay.totalAmount ?? 0).toLocaleString()}</span>
+                      <span className="text-slate-300">−</span>
+                      <span className="text-slate-500">Paid:</span>
+                      <span className="font-extrabold text-emerald-700">{pay.currency} {(pay.downPayment ?? 0).toLocaleString()}</span>
+                      <span className="text-slate-300">=</span>
+                      <span className="text-slate-500">Installments:</span>
+                      <span className="font-extrabold text-[#0086D1]">
+                        {pay.currency} {Math.max(0, (pay.totalAmount ?? 0) - (pay.downPayment ?? 0)).toLocaleString()}
+                      </span>
+                      <div className="ml-auto flex items-center gap-1.5">
+                        <span className="text-slate-400">Remaining:</span>
+                        <span className="font-extrabold text-rose-600">{pay.currency} {(pay.remainingAmount ?? 0).toLocaleString()}</span>
                       </div>
                     </div>
-                  </div>
+                  )}
 
                   {/* Conditional Terms Rendering */}
                   {pay.termType === "two_term" ? (
@@ -595,10 +702,10 @@ export default function PlotManagementPage({ params }: { params: Promise<{ id: s
         {/* ── STATS ── */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { label: "Total Plots", value: stats.total, color: "bg-white border-slate-200 text-slate-900" },
-            { label: "With Purchaser", value: stats.withBuyer, color: "bg-[#0086D1]/5 border-[#0086D1]/20 text-[#0086D1]" },
-            { label: "Deed Issued", value: stats.deedIssued, color: "bg-emerald-50 border-emerald-200 text-emerald-700" },
-            { label: "Under Const.", value: stats.built, color: "bg-violet-50 border-violet-200 text-violet-700" },
+            { label: "Total Plots", value: stats.total,      color: "bg-white border-slate-200 text-slate-900" },
+            { label: "Sold",        value: stats.sold,        color: "bg-[#0086D1]/5 border-[#0086D1]/20 text-[#0086D1]" },
+            { label: "Available",   value: stats.available,   color: "bg-amber-50 border-amber-200 text-amber-700" },
+            { label: "Deed Issued", value: stats.deedIssued,  color: "bg-emerald-50 border-emerald-200 text-emerald-700" },
           ].map(s => (
             <div key={s.label} className={`rounded-xl border px-4 py-3 ${s.color}`}>
               <p className="text-[10px] font-bold uppercase tracking-widest opacity-70">{s.label}</p>
@@ -612,35 +719,56 @@ export default function PlotManagementPage({ params }: { params: Promise<{ id: s
           <div className="relative flex-1 min-w-[180px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
             <input value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="Search plot #, purchaser, type…"
+              placeholder="Search plot #, purchaser, contractor…"
               className="w-full pl-9 pr-3 py-2.5 bg-slate-50 rounded-xl text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0086D1]/20 transition-all border border-transparent focus:border-[#0086D1]/30" />
           </div>
+
+          {/* Deed status */}
           <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-2 rounded-xl border border-slate-100">
             <ShieldCheck size={12} className="text-slate-400" />
             <select value={deedFilter} onChange={e => setDeedFilter(e.target.value)}
               className="bg-transparent text-sm font-bold text-slate-700 focus:outline-none cursor-pointer">
               <option value="all">All Deeds</option>
-              {DEED_STATUSES.map(d => <option key={d} value={d}>{d}</option>)}
+              {deedOptions.map(d => <option key={d} value={d}>{d}</option>)}
             </select>
           </div>
+
+          {/* Construction stage */}
           <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-2 rounded-xl border border-slate-100">
             <Filter size={12} className="text-slate-400" />
             <select value={constFilter} onChange={e => setConstFilter(e.target.value)}
               className="bg-transparent text-sm font-bold text-slate-700 focus:outline-none cursor-pointer">
               <option value="all">All Stages</option>
-              {CONSTRUCTION_STATUSES.filter(Boolean).map(c => <option key={c} value={c}>{c}</option>)}
+              {constOptions.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
-          <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-2 rounded-xl border border-slate-100">
-            <Home size={12} className="text-slate-400" />
-            <select value={houseFilter} onChange={e => setHouseFilter(e.target.value)}
-              className="bg-transparent text-sm font-bold text-slate-700 focus:outline-none cursor-pointer">
-              <option value="all">All Types</option>
-              {HOUSE_TYPES.map(h => <option key={h} value={h}>{h}</option>)}
-            </select>
-          </div>
-          {(search || deedFilter !== "all" || constFilter !== "all" || houseFilter !== "all") && (
-            <button onClick={() => { setSearch(""); setDeedFilter("all"); setConstFilter("all"); setHouseFilter("all"); }}
+
+          {/* Contractor */}
+          {contractorOptions.length > 0 && (
+            <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-2 rounded-xl border border-slate-100">
+              <Home size={12} className="text-slate-400" />
+              <select value={contractorFilter} onChange={e => setContractorFilter(e.target.value)}
+                className="bg-transparent text-sm font-bold text-slate-700 focus:outline-none cursor-pointer">
+                <option value="all">All Contractors</option>
+                {contractorOptions.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          )}
+
+          {/* House type — hidden if no data */}
+          {houseOptions.length > 0 && (
+            <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-2 rounded-xl border border-slate-100">
+              <Home size={12} className="text-slate-400" />
+              <select value={houseFilter} onChange={e => setHouseFilter(e.target.value)}
+                className="bg-transparent text-sm font-bold text-slate-700 focus:outline-none cursor-pointer">
+                <option value="all">All Types</option>
+                {houseOptions.map(h => <option key={h} value={h}>{h}</option>)}
+              </select>
+            </div>
+          )}
+
+          {(search || deedFilter !== "all" || constFilter !== "all" || contractorFilter !== "all" || houseFilter !== "all") && (
+            <button onClick={() => { setSearch(""); setDeedFilter("all"); setConstFilter("all"); setContractorFilter("all"); setHouseFilter("all"); }}
               className="flex items-center gap-1 px-3 py-2 rounded-xl bg-rose-50 text-rose-600 border border-rose-100 font-bold text-xs hover:bg-rose-100 transition-all">
               <X size={11} /> Clear
             </button>
@@ -673,7 +801,7 @@ export default function PlotManagementPage({ params }: { params: Promise<{ id: s
                       <div className="flex flex-col items-center gap-3">
                         <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center"><Home size={20} className="text-slate-300" /></div>
                         <p className="font-bold text-slate-500">{plots.length === 0 ? "No plots yet" : "No plots match your filters"}</p>
-                        {plots.length > 0 && <button onClick={() => { setSearch(""); setDeedFilter("all"); setConstFilter("all"); setHouseFilter("all"); }} className="text-xs font-bold text-[#0086D1] hover:underline">Clear filters</button>}
+                        {plots.length > 0 && <button onClick={() => { setSearch(""); setDeedFilter("all"); setConstFilter("all"); setContractorFilter("all"); setHouseFilter("all"); }} className="text-xs font-bold text-[#0086D1] hover:underline">Clear filters</button>}
                         {plots.length === 0 && <button onClick={openAdd} className="px-4 py-2 bg-[#0086D1] text-white rounded-xl font-bold text-sm">Add First Plot</button>}
                       </div>
                     </td></tr>
@@ -689,14 +817,18 @@ export default function PlotManagementPage({ params }: { params: Promise<{ id: s
                       <td className="px-4 py-3 text-slate-600 font-medium max-w-[140px] truncate">{p.contractorName || <span className="text-slate-300">—</span>}</td>
                       <td className="px-4 py-3 text-slate-600 font-medium whitespace-nowrap text-sm">{p.constructionStatus || <span className="text-slate-300">—</span>}</td>
                       <td className="px-4 py-3">
-                        {p.titleDeedsStatus ? (
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${
-                            p.titleDeedsStatus === "issued"  ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
-                            p.titleDeedsStatus === "pending" ? "bg-amber-50 text-amber-700 border-amber-200" :
-                            "bg-slate-100 text-slate-500 border-slate-200"}`}>
-                            {p.titleDeedsStatus === "issued" && <ShieldCheck size={10} />}{p.titleDeedsStatus}
-                          </span>
-                        ) : <span className="text-slate-300">—</span>}
+                        {p.titleDeedsStatus?.trim() ? (() => {
+                          const ds = p.titleDeedsStatus.trim().toUpperCase();
+                          return (
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${
+                              ds === "ISSUED"     ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                              ds === "PENDING"    ? "bg-amber-50 text-amber-700 border-amber-200" :
+                              ds === "NOT ISSUED" ? "bg-rose-50 text-rose-600 border-rose-200" :
+                              "bg-slate-100 text-slate-500 border-slate-200"}`}>
+                              {ds === "ISSUED" && <ShieldCheck size={10} />}{p.titleDeedsStatus.trim()}
+                            </span>
+                          );
+                        })() : <span className="text-slate-300">—</span>}
                       </td>
                       <td className="px-3 py-3">
                         <div className="flex items-center gap-1.5">
@@ -721,9 +853,6 @@ export default function PlotManagementPage({ params }: { params: Promise<{ id: s
             </div>
             <div className="px-4 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
               <span className="text-xs text-slate-400 font-medium">{filtered.length} of {plots.length} plots · {id}</span>
-              <span className="text-xs text-slate-400 font-medium flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" /> Demo · localStorage
-              </span>
             </div>
           </div>
         )}

@@ -10,12 +10,13 @@ export interface OwnershipHistory {
 export interface PaymentRecord {
   id: string;                  // unique id e.g. "pay-001"
   description: string;         // e.g. "Down Payment", "Installment 2"
-  amount: number;              // ETB / USD (First term payment value)
+  amount: number;              // ETB / USD (First term payment value / installment amount)
   currency: "ETB" | "USD";
   dueDate: string;             // ISO date string "2025-08-15" (First term due date)
   paidDate?: string;           // set when paid
   status: "pending" | "paid" | "overdue" | "waived";
   totalAmount?: number;        // total payment contract value
+  downPayment?: number;        // amount already paid upfront (reduces installment balance)
   paidAmount?: number;         // amount paid so far (One Term case)
   remainingAmount?: number;    // outstanding remaining amount
   termType?: "one_term" | "two_term";
@@ -54,6 +55,7 @@ export interface PlotDetail {
   buyerGroup?: string | null;  // e.g. "Panorama" — for group-based filtering
   ownershipHistory?: OwnershipHistory[];
   paymentSchedule?: PaymentRecord[];
+  amenities?: string[];        // per-plot amenities e.g. ["Road Access","Water Supply"]
 }
 
 export interface Property {

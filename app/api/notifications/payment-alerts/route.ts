@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
           : alert.daysUntilDue === 0 ? "Due TODAY" : `Due in ${alert.daysUntilDue} day(s)`;
 
         return resend.emails.send({
-          from:    "Aman Berki Estates <noreply@amanberkigroup.com>",
+          from:    "Aman Berki Properties <noreply@amanberkigroup.com>",
           to:      adminEmails,
           subject: `${isOverdue ? "⛔ OVERDUE" : "⚠ Payment Deadline"}: ${alert.blockId} Plot #${alert.plotNumber} ${alert.termLabel} — ${urgencyLabel}`,
           html:    buildAlertHtml(alert),
