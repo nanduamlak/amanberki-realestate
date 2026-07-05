@@ -103,10 +103,9 @@ export default function ReportsPage() {
     return "Other";
   }
 
-  // Helper to determine if a plot is sold
-  const isPlotSold = (purchaser: string) => {
-    const name = (purchaser || "").toLowerCase().trim();
-    return name && !name.includes("tulu dimtu") && !name.includes("under review") && !name.includes("???") && name !== "community center";
+  // Helper to determine if a plot is sold — based on Deed Issued status
+  const isPlotSold = (plot: any) => {
+    return (plot?.titleDeedsStatus || "").trim().toUpperCase() === "ISSUED";
   };
 
   // 1. Computed list of plots for the detailed ledger, dynamically filtered
@@ -118,12 +117,12 @@ export default function ReportsPage() {
       data = data.filter(p => p.zone === zoneFilter);
     }
 
-    // Plot Type (Active vs Sold) filter
+    // Plot Type (Sold vs Available) filter — based on Deed Issued status
     if (plotTypeFilter !== "all") {
       if (plotTypeFilter === "sold") {
-        data = data.filter(p => isPlotSold(p.purchaserName));
+        data = data.filter(p => isPlotSold(p));
       } else if (plotTypeFilter === "active") {
-        data = data.filter(p => !isPlotSold(p.purchaserName));
+        data = data.filter(p => !isPlotSold(p));
       }
     }
 
@@ -176,7 +175,7 @@ export default function ReportsPage() {
     const uniqueBlocks = new Set(filteredPlots.map(p => p.blockId));
     const totalBlocks = uniqueBlocks.size;
     
-    const soldCount = filteredPlots.filter(p => isPlotSold(p.purchaserName)).length;
+    const soldCount = filteredPlots.filter(p => isPlotSold(p)).length;
     const availCount = totalPlots - soldCount;
     
     const totalArea = filteredPlots.reduce((sum, p) => sum + (p.plotSize || 0), 0);
@@ -186,7 +185,7 @@ export default function ReportsPage() {
 
   // Chart 1: Status Distribution (Pie of Plots)
   const statusData = useMemo(() => {
-    const sold = filteredPlots.filter(p => isPlotSold(p.purchaserName)).length;
+    const sold = filteredPlots.filter(p => isPlotSold(p)).length;
     const avail = filteredPlots.length - sold;
     return [
       { name: "Available Plots", value: avail, color: COLORS.available },
@@ -199,7 +198,7 @@ export default function ReportsPage() {
     const zones = ["Zone I G+1", "Zone II G+0"] as const;
     return zones.map(zone => {
       const zonePlots = filteredPlots.filter(p => p.zone === zone);
-      const sold = zonePlots.filter(p => isPlotSold(p.purchaserName)).length;
+      const sold = zonePlots.filter(p => isPlotSold(p)).length;
       const avail = zonePlots.length - sold;
       return {
         name: zone,
@@ -253,7 +252,7 @@ export default function ReportsPage() {
     const zones = ["Zone I G+1", "Zone II G+0"] as const;
     return zones.map(zone => {
       const zonePlots = filteredPlots.filter(p => p.zone === zone);
-      const sold = zonePlots.filter(p => isPlotSold(p.purchaserName)).length;
+      const sold = zonePlots.filter(p => isPlotSold(p)).length;
       const avail = zonePlots.length - sold;
       const deeds = zonePlots.filter(p => p.titleDeedsStatus === "ISSUED").length;
       return {
@@ -634,35 +633,6 @@ export default function ReportsPage() {
             </CardContent>
           </Card>
 
-          {/* Area vs Plots Distribution (Full Width) */}
-          <Card className="lg:col-span-2 border border-slate-200/60 shadow-sm bg-white rounded-2xl print:shadow-none print:break-inside-avoid">
-            <CardHeader className="pb-2 border-b border-slate-100">
-              <CardTitle className="text-lg font-bold flex items-center gap-2 text-slate-800">
-                <Layers className="text-amber-600" size={20} /> Area vs Plot Density (Sampled Blocks)
-              </CardTitle>
-              <CardDescription>Visualizing the relationship between total area and number of plots per block.</CardDescription>
-            </CardHeader>
-            <CardContent className="p-6 h-[300px]">
-              {blockTrendData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={260}>
-                  <ComposedChart data={blockTrendData} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 11 }} dy={10} />
-                    <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 11 }} />
-                    <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 11 }} />
-                    <Tooltip
-                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)', fontWeight: 600 }}
-                    />
-                    <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
-                    <Area yAxisId="left" type="monotone" name="Total Area (m²)" dataKey="Area" fill="#fef3c7" stroke="#f59e0b" strokeWidth={2} />
-                    <Line yAxisId="right" type="monotone" name="Number of Plots" dataKey="Plots" stroke="#6366f1" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-full flex items-center justify-center text-slate-400 font-medium text-sm">No data available</div>
-              )}
-            </CardContent>
-          </Card>
         </div>
 
         {/* NEW: Plot-Level Analytics Section */}

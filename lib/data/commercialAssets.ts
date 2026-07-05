@@ -343,7 +343,7 @@ export const COMMERCIAL_ASSETS: CommercialAsset[] = [
     id: "bale-robe",
     name: "Bale Robe Building",
     location: "Bale Robe, Oromia Region",
-    description: "Commercial building asset under the Aman Berki Group portfolio located in Bale Robe, currently registered as an active holding.",
+    description: "Commercial building asset under the Aman Berki properties portfolio located in Bale Robe, currently registered as an active holding.",
     image: "/bale_robe.jpg",
     category: "Commercial / Retail Property",
     rooms: []

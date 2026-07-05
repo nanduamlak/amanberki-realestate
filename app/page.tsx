@@ -840,9 +840,16 @@ export default function HomePage() {
                         onMouseEnter={e => {
                           if (!editMode) {
                             setHoveredBlock(hs.id);
-                            const svg = (e.target as SVGElement).closest("svg")!;
-                            const rect = svg.getBoundingClientRect();
-                            setTooltip({ x: (centroid.x / 100) * rect.width, y: (centroid.y / 100) * rect.height, block: hs.id });
+                            const container = (e.target as SVGElement).closest("svg")!.parentElement!;
+                            const rect = container.getBoundingClientRect();
+                            setTooltip({ x: e.clientX - rect.left, y: e.clientY - rect.top, block: hs.id });
+                          }
+                        }}
+                        onMouseMove={e => {
+                          if (!editMode && hoveredBlock === hs.id) {
+                            const container = (e.target as SVGElement).closest("svg")!.parentElement!;
+                            const rect = container.getBoundingClientRect();
+                            setTooltip(prev => prev ? { ...prev, x: e.clientX - rect.left, y: e.clientY - rect.top } : prev);
                           }
                         }}
                         onMouseLeave={() => { if (!editMode && !searchHighlight) { setHoveredBlock(null); setTooltip(null); } }}
@@ -909,26 +916,32 @@ export default function HomePage() {
               const prop = getLocalProp(hoveredBlock);
               if (!prop) return null;
 
-              // ── Edge-aware positioning ────────────────────────────────
-              // Tooltip is ~280px wide and ~160px tall (approx).
-              const TW = 288;   // tooltip width
-              const TH = 168;   // tooltip approx height incl. arrow
-              const MARGIN = 12; // min px gap from container edge
+              // ── Cursor-follow positioning ─────────────────────────────
+              // Tooltip follows the mouse with a fixed offset so it never
+              // sits on top of the hovered block polygon.
+              const TW = 288;    // tooltip width
+              const TH = 180;    // tooltip approx height
+              const OFFSET = 18; // gap between cursor tip and tooltip edge
+              const MARGIN = 8;  // min px gap from container edge
 
               const container = mapImageRef.current;
               const cw = container?.offsetWidth  ?? 800;
               const ch = container?.offsetHeight ?? 600;
 
-              // Horizontal: center on block centroid, clamp within container
-              let left = tooltip.x - TW / 2;
-              left = Math.max(MARGIN, Math.min(left, cw - TW - MARGIN));
+              // Prefer top-right of cursor; flip horizontally if near right edge
+              const flipLeft  = tooltip.x + OFFSET + TW > cw - MARGIN;
+              // Prefer above cursor; flip below if near top edge
+              const showBelow = tooltip.y - OFFSET - TH < MARGIN;
 
-              // Vertical: show above by default; flip below if near top
-              const showBelow = tooltip.y < TH + MARGIN;
-              const top = showBelow ? tooltip.y + 20 : tooltip.y - TH - 8;
+              const left = flipLeft
+                ? tooltip.x - OFFSET - TW
+                : tooltip.x + OFFSET;
+              const top  = showBelow
+                ? tooltip.y + OFFSET
+                : tooltip.y - OFFSET - TH;
 
-              // Arrow tracks original centroid x within the (possibly shifted) tooltip
-              const arrowLeft = Math.min(Math.max(tooltip.x - left, 16), TW - 16);
+              // Arrow is always on the side closest to the cursor
+              const arrowLeft = flipLeft ? TW - 24 : 16;
 
               return (
                 <div
@@ -968,10 +981,10 @@ export default function HomePage() {
                     Click to open details →
                   </div>
 
-                  {/* Dynamic arrow */}
+                  {/* Dynamic arrow — points toward the cursor */}
                   {showBelow
-                    ? <div className="absolute -top-2 w-4 h-4 bg-slate-900 rotate-45 border-l border-t border-slate-700" style={{ left: arrowLeft - 8 }} />
-                    : <div className="absolute -bottom-2 w-4 h-4 bg-slate-900 rotate-45 border-r border-b border-slate-700" style={{ left: arrowLeft - 8 }} />
+                    ? <div className="absolute -top-2 w-4 h-4 bg-slate-900 rotate-45 border-l border-t border-slate-700" style={{ left: arrowLeft }} />
+                    : <div className="absolute -bottom-2 w-4 h-4 bg-slate-900 rotate-45 border-r border-b border-slate-700" style={{ left: arrowLeft }} />
                   }
                 </div>
               );

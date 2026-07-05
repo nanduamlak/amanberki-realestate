@@ -129,7 +129,7 @@ export default function CommercialAssetDetailPage({ params }: { params: Promise<
                 </div>
                 <div>
                   <span className="text-slate-400 font-bold uppercase tracking-wide">Owner</span>
-                  <p className="font-bold text-slate-900 mt-0.5">Aman Berki Group</p>
+                  <p className="font-bold text-slate-900 mt-0.5">Aman Berki properties</p>
                 </div>
               </div>
             </div>

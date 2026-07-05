@@ -16,11 +16,11 @@ export async function GET() {
       SELECT
         COUNT(DISTINCT p.id)  AS total_blocks,
         COUNT(pd.id)          AS total_plots,
-        COUNT(CASE WHEN pd.purchaser_name NOT ILIKE '%tulu dimtu%'
-                        AND TRIM(pd.purchaser_name) != ''
+        COUNT(CASE WHEN UPPER(TRIM(pd.title_deeds_status)) = 'ISSUED'
                    THEN 1 END) AS sold_plots,
-        COUNT(CASE WHEN pd.purchaser_name ILIKE '%tulu dimtu%'
-                     OR TRIM(pd.purchaser_name) = ''
+        COUNT(CASE WHEN UPPER(TRIM(pd.title_deeds_status)) != 'ISSUED'
+                     OR pd.title_deeds_status IS NULL
+                     OR TRIM(pd.title_deeds_status) = ''
                    THEN 1 END) AS active_plots,
         COALESCE(SUM(
           CASE WHEN SPLIT_PART(pd.plot_size, '+', 1) ~ '^[0-9]+(\.[0-9]+)?$'
@@ -63,11 +63,13 @@ export async function GET() {
       SELECT
         p.zone,
         COUNT(pd.id) AS total_plots,
-        COUNT(CASE WHEN pd.purchaser_name NOT ILIKE '%tulu dimtu%' AND TRIM(pd.purchaser_name) != '' AND pd.purchaser_name NOT ILIKE '%under review%' AND pd.purchaser_name NOT ILIKE '???%' THEN 1 END) AS sold_plots,
-        COUNT(CASE WHEN pd.purchaser_name ILIKE '%tulu dimtu%' THEN 1 END) AS available_plots,
-        COUNT(CASE WHEN pd.title_deeds_status = 'ISSUED' THEN 1 END) AS deeds_issued,
-        COUNT(CASE WHEN pd.title_deeds_status = 'NOT ISSUED' THEN 1 END) AS deeds_not_issued,
-        COUNT(CASE WHEN pd.title_deeds_status = 'PENDING' THEN 1 END) AS deeds_pending
+        COUNT(CASE WHEN UPPER(TRIM(pd.title_deeds_status)) = 'ISSUED' THEN 1 END) AS sold_plots,
+        COUNT(CASE WHEN UPPER(TRIM(pd.title_deeds_status)) != 'ISSUED'
+                     OR pd.title_deeds_status IS NULL
+                     OR TRIM(pd.title_deeds_status) = '' THEN 1 END) AS available_plots,
+        COUNT(CASE WHEN UPPER(TRIM(pd.title_deeds_status)) = 'ISSUED' THEN 1 END) AS deeds_issued,
+        COUNT(CASE WHEN UPPER(TRIM(pd.title_deeds_status)) = 'NOT ISSUED' THEN 1 END) AS deeds_not_issued,
+        COUNT(CASE WHEN UPPER(TRIM(pd.title_deeds_status)) = 'PENDING' THEN 1 END) AS deeds_pending
       FROM plot_details pd
       JOIN properties p ON pd.block_id = p.id
       GROUP BY p.zone
@@ -82,9 +84,9 @@ export async function GET() {
         p.zone,
         p.status,
         COUNT(pd.id) AS total_plots,
-        COUNT(CASE WHEN pd.purchaser_name NOT ILIKE '%tulu dimtu%' AND TRIM(pd.purchaser_name) != '' THEN 1 END) AS sold_plots,
+        COUNT(CASE WHEN UPPER(TRIM(pd.title_deeds_status)) = 'ISSUED' THEN 1 END) AS sold_plots,
         SUM(CASE WHEN SPLIT_PART(pd.plot_size, '+', 1) ~ '^[0-9]+(\.[0-9]+)?$' THEN SPLIT_PART(pd.plot_size, '+', 1)::numeric ELSE 0 END) AS total_area,
-        COUNT(CASE WHEN pd.title_deeds_status = 'ISSUED' THEN 1 END) AS deeds_issued
+        COUNT(CASE WHEN UPPER(TRIM(pd.title_deeds_status)) = 'ISSUED' THEN 1 END) AS deeds_issued
       FROM properties p
       LEFT JOIN plot_details pd ON pd.block_id = p.id
       GROUP BY p.id, p.block_number, p.zone, p.status

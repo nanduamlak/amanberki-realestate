@@ -22,7 +22,7 @@ export default function CommercialAssetsPage() {
             Group Commercial Assets
           </h1>
           <p className="text-slate-500 text-base max-w-2xl leading-relaxed">
-            Overview of the premium built-up commercial properties and rental complexes held under the Aman Berki Group portfolio.
+            Overview of the premium built-up commercial properties and rental complexes held under the Aman Berki properties portfolio.
           </p>
         </div>
 

@@ -43,7 +43,7 @@ function buildAlertHtml(alert: PaymentAlertPayload): string {
     <div style="background:linear-gradient(135deg,#0086D1,#005fa3);padding:32px;text-align:center;">
       <div style="display:inline-block;width:56px;height:56px;background:rgba(255,255,255,.2);border-radius:14px;line-height:56px;font-size:28px;margin-bottom:12px;">🔔</div>
       <h1 style="color:#fff;margin:0;font-size:22px;font-weight:800;letter-spacing:-0.5px;">Payment ${isOverdue ? "Overdue" : "Deadline Alert"}</h1>
-      <p style="color:rgba(255,255,255,.8);margin:8px 0 0;font-size:14px;">Aman Berki Group — Real Estate Management</p>
+      <p style="color:rgba(255,255,255,.8);margin:8px 0 0;font-size:14px;">Aman Berki properties — Real Estate Management</p>
     </div>
     <div style="background:${statusBg};border-left:4px solid ${statusColor};margin:24px;padding:16px;border-radius:8px;">
       <p style="margin:0;color:${statusColor};font-weight:800;font-size:15px;">⚠ ${urgencyLabel}</p>
@@ -74,7 +74,7 @@ function buildAlertHtml(alert: PaymentAlertPayload): string {
       </div>
     </div>
     <div style="background:#f8fafc;padding:16px 24px;text-align:center;border-top:1px solid #f1f5f9;">
-      <p style="margin:0;font-size:12px;color:#94a3b8;">Aman Berki Group · Real Estate Management System</p>
+      <p style="margin:0;font-size:12px;color:#94a3b8;">Aman Berki properties · Real Estate Management System</p>
       <p style="margin:4px 0 0;font-size:11px;color:#cbd5e1;">This is an automated notification. Do not reply to this email.</p>
     </div>
   </div>

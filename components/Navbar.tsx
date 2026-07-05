@@ -106,7 +106,7 @@ export default function Navbar() {
 
         {/* Company name */}
         <span className="text-xl font-black">
-          Aman Berki Group
+          Aman Berki properties
         </span>
 
         {/* Right: name + role pill + avatar */}
