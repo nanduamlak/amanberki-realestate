@@ -620,16 +620,16 @@ export default function HomePage() {
                   </button>
                 )}
 
-                {/* Labels toggle */}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowLabels(v => !v)}
-                  className={`font-bold text-xs rounded-xl gap-1.5 ${showLabels ? "bg-slate-900 text-white border-slate-900" : "border-slate-200 text-slate-600"}`}
-                >
-                  {showLabels ? <Eye size={13} /> : <EyeOff size={13} />}
-                  {showLabels ? "Labels On" : "Labels Off"}
-                </Button>
+                 {/* Labels toggle */}
+                 <Button
+                   variant="outline"
+                   size="sm"
+                   onClick={() => setShowLabels(v => !v)}
+                   className={`font-bold text-xs rounded-xl gap-1.5 ${showLabels ? "bg-slate-900 text-white border-slate-900" : "border-slate-200 text-slate-600"}`}
+                 >
+                   {showLabels ? <Eye size={13} /> : <EyeOff size={13} />}
+                   {showLabels ? "Details On" : "Details Off"}
+                 </Button>
 
                 {/* Draw Blocks */}
                 {permissions.canDrawBlocks && (
@@ -824,7 +824,7 @@ export default function HomePage() {
                   const isEditingThis = editMode && selectedShapeIdForEdit === hs.shape_id;
                   const isDimmed = isBlockDimmed(hs.id);
                   const centroid = getCentroid(hs.points);
-                  const showLabel = (showLabels || isHovered || isSearched || isEditingThis || selectedBlocks.has(hs.id)) && !isDimmed;
+                  const showLabel = !isDimmed;
 
                   const isNearby = false;
 
@@ -855,22 +855,96 @@ export default function HomePage() {
                         onMouseLeave={() => { if (!editMode && !searchHighlight) { setHoveredBlock(null); setTooltip(null); } }}
                         onClick={e => handlePolygonClick(hs.id, hs.shape_id, e)}
                       />
-                      {/* Feature 4: always-on label text */}
-                      {showLabel && (
-                        <text x={centroid.x} y={centroid.y} textAnchor="middle" dominantBaseline="middle"
-                          fill="#fff" style={{ pointerEvents: "none", filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.9))" }}>
-                          <tspan x={centroid.x} dy="-0.2em" fontSize={showLabels ? 1.1 : 1.3} fontWeight="black">B{hs.id}</tspan>
-                          {(() => {
-                            const p = getLocalProp(hs.id);
-                            if (!p) return null;
-                            return (
-                              <tspan x={centroid.x} dy="1.1em" fontSize="0.75" fontWeight="bold" fill={p.activePlots > 0 ? "#4ade80" : "#f87171"}>
-                                {p.soldPlots}/{p.noOfPlots} Sold
-                              </tspan>
-                            );
-                          })()}
-                        </text>
-                      )}
+                      {/* Premium Always-On Block Label Badge */}
+                      {showLabel && (() => {
+                        const p = getLocalProp(hs.id);
+                        const isDetailed = showLabels || isHovered || isSearched || selectedBlocks.has(hs.id);
+                        
+                        // Calculate proportional width & height depending on text length and detail state
+                        let width = 2.4;
+                        if (isDetailed) {
+                          if (hs.id >= 100) width = 4.5;
+                          else if (hs.id >= 10) width = 3.9;
+                          else width = 3.4;
+                        } else {
+                          if (hs.id >= 100) width = 3.7;
+                          else if (hs.id >= 10) width = 3.1;
+                          else width = 2.5;
+                        }
+                        
+                        const height = isDetailed ? 3.8 : 2.5;
+                        
+                        const x = centroid.x - width / 2;
+                        const y = centroid.y - height / 2;
+                        
+                        return (
+                          <g 
+                            style={{ pointerEvents: "none" }}
+                            transform={`translate(${centroid.x}, ${centroid.y}) scale(${isHovered ? 1.18 : 1}) translate(${-centroid.x}, ${-centroid.y})`}
+                          >
+                            {/* Glassmorphic/dark premium pill background */}
+                            <rect
+                              x={x}
+                              y={y}
+                              width={width}
+                              height={height}
+                              rx={0.8}
+                              ry={0.8}
+                              fill="rgba(15, 23, 42, 0.9)"
+                              stroke={isHovered || isSearched ? "rgba(255, 255, 255, 0.5)" : "rgba(255, 255, 255, 0.18)"}
+                              strokeWidth={0.08}
+                              style={{
+                                filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.4))",
+                                transition: "stroke 0.2s ease, fill 0.2s ease"
+                              }}
+                            />
+                            
+                            {/* Block ID text */}
+                            <text
+                              x={centroid.x}
+                              y={isDetailed ? centroid.y - 0.6 : centroid.y + 0.05}
+                              textAnchor="middle"
+                              dominantBaseline="middle"
+                              fill="#ffffff"
+                              fontSize={1.0}
+                              fontWeight="900"
+                              letterSpacing="-0.02em"
+                            >
+                              B{hs.id}
+                            </text>
+                            
+                            {/* Sold/Active Details if detailed */}
+                            {isDetailed && p && (
+                              <text
+                                x={centroid.x}
+                                y={centroid.y + 0.75}
+                                textAnchor="middle"
+                                dominantBaseline="middle"
+                                fontSize={0.65}
+                                fontWeight="bold"
+                                fill={p.activePlots > 0 ? "#4ade80" : "#f87171"}
+                              >
+                                {p.soldPlots}/{p.noOfPlots}
+                              </text>
+                            )}
+
+                            {/* Tiny status dot indicator on the top-right corner of the badge */}
+                            {p && (
+                              <circle
+                                cx={centroid.x + width / 2 - 0.35}
+                                cy={centroid.y - height / 2 + 0.35}
+                                r={0.3}
+                                fill={p.activePlots > 0 ? "#10b981" : "#ef4444"}
+                                stroke="#ffffff"
+                                strokeWidth={0.06}
+                                style={{
+                                  filter: "drop-shadow(0 0.5px 1px rgba(0,0,0,0.5))"
+                                }}
+                              />
+                            )}
+                          </g>
+                        );
+                      })()}
                     </g>
                   );
                 })}

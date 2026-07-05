@@ -103,9 +103,10 @@ export default function ReportsPage() {
     return "Other";
   }
 
-  // Helper to determine if a plot is sold — based on Deed Issued status
+  // Helper to determine if a plot is sold — based on Purchaser Name status
   const isPlotSold = (plot: any) => {
-    return (plot?.titleDeedsStatus || "").trim().toUpperCase() === "ISSUED";
+    const name = (plot?.purchaserName || "").trim().toUpperCase();
+    return name !== "" && name !== "TULU DIMTU REAL ESTATE";
   };
 
   // 1. Computed list of plots for the detailed ledger, dynamically filtered
