@@ -25,6 +25,47 @@ export interface CmcTenantHistory {
   statusNotes: string;
 }
 
+export interface WajidTowerRoom {
+  roomNo: string;
+  size: string;
+  rate: string;
+  clientName: string;
+  phone: string;
+  status: string;
+  jul: boolean;
+  aug: boolean;
+  sep: boolean;
+  oct: boolean;
+  nov: boolean;
+  dec: boolean;
+  jan: boolean;
+  feb: boolean;
+  mar: boolean;
+  apr: boolean;
+  may: boolean;
+  jun: boolean;
+  julNext: boolean;
+}
+
+export interface PiasaRoom {
+  roomNo: string;
+  size: string;
+  location: string;
+  status: string;
+  jan: boolean;
+  feb: boolean;
+  mar: boolean;
+  apr: boolean;
+  may: boolean;
+  jun: boolean;
+  jul: boolean;
+  aug: boolean;
+  sep: boolean;
+  oct: boolean;
+  nov: boolean;
+  dec: boolean;
+}
+
 export interface CommercialAsset {
   id: string;
   name: string;
@@ -33,6 +74,8 @@ export interface CommercialAsset {
   image: string;
   category: string;
   rooms?: BoleRwandaRoom[];
+  wajidRooms?: WajidTowerRoom[];
+  piasaRooms?: PiasaRoom[];
   tenantHistory?: CmcTenantHistory[];
   attachments?: { name: string; url: string; type: 'pdf' | 'docx' }[];
 }
@@ -347,5 +390,41 @@ export const COMMERCIAL_ASSETS: CommercialAsset[] = [
     image: "/bale_robe.jpg",
     category: "Commercial / Retail Property",
     rooms: []
+  },
+  {
+    id: "merkato-wajid-tower",
+    name: "Merkato Wajid Tower",
+    location: "Merkato, Addis Ababa",
+    description: "A premium multi-level commercial tower situated in the high-density trading center of Merkato. Optimized for retail stalls, wholesalers, and general business tenants with dedicated storage options.",
+    image: "/merkato_wajid_tower.jpg",
+    category: "Commercial Tower",
+    attachments: [
+      { name: "Wajid Tower Directory File", url: "/merkato_wajid_tower_directory-v4.pdf", type: "pdf" }
+    ],
+    wajidRooms: [
+      { roomNo: "B04", size: "—", rate: "—", clientName: "Abdurezak", phone: "0919 37 08 23", status: "OCCUPIED", jul: false, aug: false, sep: false, oct: false, nov: false, dec: false, jan: false, feb: false, mar: false, apr: false, may: false, jun: false, julNext: false },
+      { roomNo: "B08", size: "—", rate: "—", clientName: "Yasin", phone: "0942 22 07 47", status: "OCCUPIED", jul: false, aug: false, sep: false, oct: false, nov: false, dec: false, jan: false, feb: false, mar: false, apr: false, may: false, jun: false, julNext: false },
+      { roomNo: "G20", size: "—", rate: "—", clientName: "Hasen (Book Store)", phone: "0911 36 18 97", status: "OCCUPIED", jul: false, aug: false, sep: false, oct: false, nov: false, dec: false, jan: false, feb: false, mar: false, apr: false, may: false, jun: false, julNext: false },
+      { roomNo: "G19", size: "—", rate: "—", clientName: "Hilewamu Mosquonetic PLC", phone: "0936 36 91 91", status: "OCCUPIED", jul: false, aug: false, sep: false, oct: false, nov: false, dec: false, jan: false, feb: false, mar: false, apr: false, may: false, jun: false, julNext: false },
+      { roomNo: "G11", size: "—", rate: "—", clientName: "Sani", phone: "0912 97 17 68", status: "OCCUPIED", jul: false, aug: false, sep: false, oct: false, nov: false, dec: false, jan: false, feb: false, mar: false, apr: false, may: false, jun: false, julNext: false },
+      { roomNo: "114", size: "—", rate: "—", clientName: "Hasen", phone: "0910 18 69 28", status: "OCCUPIED", jul: false, aug: false, sep: false, oct: false, nov: false, dec: false, jan: false, feb: false, mar: false, apr: false, may: false, jun: false, julNext: false },
+      { roomNo: "115", size: "—", rate: "—", clientName: "Ibrahim", phone: "0919 39 93 59", status: "OCCUPIED", jul: false, aug: false, sep: false, oct: false, nov: false, dec: false, jan: false, feb: false, mar: false, apr: false, may: false, jun: false, julNext: false },
+      { roomNo: "105", size: "—", rate: "—", clientName: "Nega", phone: "0912 97 11 54", status: "OCCUPIED", jul: false, aug: false, sep: false, oct: false, nov: false, dec: false, jan: false, feb: false, mar: false, apr: false, may: false, jun: false, julNext: false }
+    ]
+  },
+  {
+    id: "piasa-retail-shop",
+    name: "Piasa Retail Shop",
+    location: "Piasa, Addis Ababa",
+    description: "Premium retail space located in the historic core of Piasa, Addis Ababa. Features street-front exposure and high foot traffic suitable for retail and showroom services.",
+    image: "/piasa_retail_shop.jpg",
+    category: "Retail Shops",
+    attachments: [
+      { name: "Piasa Retail Space Directory", url: "/piassa_rental_space_tracker.pdf", type: "pdf" }
+    ],
+    piasaRooms: [
+      { roomNo: "C14", size: "18.20 m²", location: "Semi Basement", status: "NOT RENTED", jan: false, feb: false, mar: false, apr: false, may: false, jun: false, jul: false, aug: false, sep: false, oct: false, nov: false, dec: false },
+      { roomNo: "D32", size: "26.70 m²", location: "1st Floor", status: "NOT RENTED", jan: false, feb: false, mar: false, apr: false, may: false, jun: false, jul: false, aug: false, sep: false, oct: false, nov: false, dec: false }
+    ]
   }
 ];

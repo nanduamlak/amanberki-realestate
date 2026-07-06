@@ -41,6 +41,39 @@ export default function CommercialAssetDetailPage({ params }: { params: Promise<
     { key: "nehase", label: "Nehase (ነሐሴ)" }
   ] as const;
 
+  // Monthly columns tracker helper for Merkato Wajid Tower
+  const WAJID_MONTHS = [
+    { key: "jul", label: "Jul" },
+    { key: "aug", label: "Aug" },
+    { key: "sep", label: "Sep" },
+    { key: "oct", label: "Oct" },
+    { key: "nov", label: "Nov" },
+    { key: "dec", label: "Dec" },
+    { key: "jan", label: "Jan" },
+    { key: "feb", label: "Feb" },
+    { key: "mar", label: "Mar" },
+    { key: "apr", label: "Apr" },
+    { key: "may", label: "May" },
+    { key: "jun", label: "Jun" },
+    { key: "julNext", label: "Jul" }
+  ] as const;
+
+  // Monthly columns tracker helper for Piasa Retail Shop
+  const PIASA_MONTHS = [
+    { key: "jan", label: "Jan" },
+    { key: "feb", label: "Feb" },
+    { key: "mar", label: "Mar" },
+    { key: "apr", label: "Apr" },
+    { key: "may", label: "May" },
+    { key: "jun", label: "Jun" },
+    { key: "jul", label: "Jul" },
+    { key: "aug", label: "Aug" },
+    { key: "sep", label: "Sep" },
+    { key: "oct", label: "Oct" },
+    { key: "nov", label: "Nov" },
+    { key: "dec", label: "Dec" }
+  ] as const;
+
   return (
     <div className="min-h-screen bg-[#f8fafc] text-foreground pb-20">
       {/* Header section with back button */}
@@ -238,6 +271,160 @@ export default function CommercialAssetDetailPage({ params }: { params: Promise<
                 </div>
               </div>
             </>
+          )}
+
+          {/* Merkato Wajid Tower Render (Room rent tracker) */}
+          {asset.id === "merkato-wajid-tower" && asset.wajidRooms && (
+            <div className="bg-white border border-slate-200/60 rounded-3xl overflow-hidden shadow-sm">
+              <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
+                    <History className="text-indigo-600" size={18} /> Rent &amp; Payment tracker Ledger
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1">Multi-Month Occupancy &amp; Rent Tracker (July — July Next Year)</p>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-[11px] border-collapse min-w-[800px]">
+                  <thead>
+                    <tr className="bg-[#92d050] text-slate-950 font-bold border-b border-slate-200">
+                      <th className="px-3 py-2 text-center border border-slate-200">Space ID</th>
+                      <th className="px-3 py-2 text-center border border-slate-200">Sq. Met</th>
+                      <th className="px-3 py-2 text-center border border-slate-200">Rental Rate</th>
+                      <th className="px-3 py-2 text-left border border-slate-200">Tenant Name / Company</th>
+                      <th className="px-3 py-2 text-center border border-slate-200">Phone Number</th>
+                      <th className="px-3 py-2 text-center border border-slate-200">Status</th>
+                      {WAJID_MONTHS.map((m, mIdx) => (
+                        <th key={mIdx} className="px-2 py-2 text-center border border-slate-200 text-[10px] font-bold">
+                          {m.label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {asset.wajidRooms.map((room, idx) => {
+                      const isVacant = room.status.toUpperCase() !== "OCCUPIED";
+                      return (
+                        <tr key={idx} className={`hover:bg-slate-50 border-b border-slate-100 last:border-0 ${isVacant ? "bg-slate-50/40 text-slate-400" : "text-slate-700"}`}>
+                          <td className="px-3 py-2 text-center border border-slate-200 font-bold whitespace-nowrap">
+                            {room.roomNo}
+                          </td>
+                          <td className="px-3 py-2 text-center border border-slate-200 font-medium">
+                            {room.size}
+                          </td>
+                          <td className="px-3 py-2 text-center border border-slate-200 font-medium">
+                            {room.rate}
+                          </td>
+                          <td className={`px-3 py-2 border border-slate-200 font-bold ${isVacant ? "italic font-normal" : "text-slate-900"}`}>
+                            {room.clientName || "—"}
+                          </td>
+                          <td className="px-3 py-2 text-center border border-slate-200 font-medium whitespace-nowrap">
+                            {room.phone || "—"}
+                          </td>
+                          <td className="px-3 py-2 text-center border border-slate-200 font-bold">
+                            <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${
+                              room.status.toUpperCase() === "OCCUPIED" 
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-100" 
+                                : "bg-slate-100 text-slate-500 border border-slate-200"
+                            }`}>
+                              {room.status}
+                            </span>
+                          </td>
+                          {WAJID_MONTHS.map((m, mIdx) => {
+                            const checked = room[m.key as keyof typeof room] as boolean;
+                            return (
+                              <td key={mIdx} className="px-2 py-2 text-center border border-slate-200">
+                                {checked ? (
+                                  <span className="inline-flex h-5 w-5 rounded-full bg-emerald-50 text-emerald-600 items-center justify-center font-bold text-xs shadow-sm">
+                                    ✓
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-200">—</span>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Piasa Retail Shop Render (Room rent tracker) */}
+          {asset.id === "piasa-retail-shop" && asset.piasaRooms && (
+            <div className="bg-white border border-slate-200/60 rounded-3xl overflow-hidden shadow-sm">
+              <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
+                    <History className="text-indigo-600" size={18} /> Rent &amp; Payment tracker Ledger
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1">Monthly Occupancy &amp; Rent Tracking</p>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-[11px] border-collapse min-w-[800px]">
+                  <thead>
+                    <tr className="bg-[#92d050] text-slate-950 font-bold border-b border-slate-200">
+                      <th className="px-3 py-2 text-center border border-slate-200">Space ID</th>
+                      <th className="px-3 py-2 text-center border border-slate-200">Sq. Meters</th>
+                      <th className="px-3 py-2 text-left border border-slate-200">Location</th>
+                      <th className="px-3 py-2 text-center border border-slate-200">Status</th>
+                      {PIASA_MONTHS.map((m, mIdx) => (
+                        <th key={mIdx} className="px-2 py-2 text-center border border-slate-200 text-[10px] font-bold">
+                          {m.label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {asset.piasaRooms.map((room, idx) => {
+                      const isVacant = room.status.toUpperCase() === "NOT RENTED";
+                      return (
+                        <tr key={idx} className={`hover:bg-slate-50 border-b border-slate-100 last:border-0 ${isVacant ? "bg-slate-50/40 text-slate-400" : "text-slate-700"}`}>
+                          <td className="px-3 py-2 text-center border border-slate-200 font-bold whitespace-nowrap">
+                            {room.roomNo}
+                          </td>
+                          <td className="px-3 py-2 text-center border border-slate-200 font-medium">
+                            {room.size}
+                          </td>
+                          <td className="px-3 py-2 text-left border border-slate-200 font-medium">
+                            {room.location}
+                          </td>
+                          <td className="px-3 py-2 text-center border border-slate-200 font-bold">
+                            <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${
+                              room.status.toUpperCase() === "NOT RENTED" 
+                                ? "bg-rose-50 text-rose-700 border border-rose-100" 
+                                : "bg-emerald-50 text-emerald-700 border border-emerald-100"
+                            }`}>
+                              {room.status}
+                            </span>
+                          </td>
+                          {PIASA_MONTHS.map((m, mIdx) => {
+                            const checked = room[m.key as keyof typeof room] as boolean;
+                            return (
+                              <td key={mIdx} className="px-2 py-2 text-center border border-slate-200">
+                                {checked ? (
+                                  <span className="inline-flex h-5 w-5 rounded-full bg-emerald-50 text-emerald-600 items-center justify-center font-bold text-xs shadow-sm">
+                                    ✓
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-200">—</span>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           )}
 
           {/* CMC Render (Tenant timeline & history table) */}

@@ -7,6 +7,7 @@ import {
   FileText, Download, Filter, FileSpreadsheet, BarChart as BarChartIcon, CheckCircle2, CircleDollarSign, Map, Printer, PieChart as PieChartIcon, TrendingUp, Layers, Shield, Hammer
 } from "lucide-react";
 import { toast } from "@/lib/toast";
+import * as XLSX from "xlsx";
 import { 
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, ComposedChart, Line, Area, AreaChart, RadarChart, Radar, PolarGrid, PolarAngleAxis
 } from "recharts";
@@ -106,7 +107,7 @@ export default function ReportsPage() {
   // Helper to determine if a plot is sold — based on Purchaser Name status
   const isPlotSold = (plot: any) => {
     const name = (plot?.purchaserName || "").trim().toUpperCase();
-    return name !== "" && name !== "TULU DIMTU REAL ESTATE";
+    return name !== "" && name !== "TULU DIMTU REAL ESTATE" && name !== "TULU DIMTU REAL ESTATE (B*)";
   };
 
   // 1. Computed list of plots for the detailed ledger, dynamically filtered
@@ -311,38 +312,27 @@ export default function ReportsPage() {
     });
   }, [filteredPlots]);
 
-  const handleExportCSV = () => {
+  const handleExportExcel = async () => {
     if (filteredPlots.length === 0) {
       toast.warning("No data to export based on current filters.");
       return;
     }
 
     try {
-      // EXACT columns as Tulu Dimtu Inventory.xlsx
-      const headers = [
-        "Block No.", "Plot No.", "Plot Size", "Built-up Area", 
-        "Purchaser Name", "Title Deeds Status", "Contractor", "Construction Status", "Remark"
-      ];
+      toast.info("Generating styled Excel sheet...", 1500);
+      const res = await fetch("/api/reports/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(filteredPlots),
+      });
 
-      const rows = filteredPlots.map(p => [
-        p.blockNumber, 
-        p.plotNumber, 
-        p.plotSize || "", 
-        p.builtArea || "",
-        `"${(p.purchaserName || "").replace(/"/g, '""')}"`,
-        `"${(p.titleDeedsStatus || "").replace(/"/g, '""')}"`,
-        `"${(p.contractorName || "").replace(/"/g, '""')}"`,
-        `"${(p.constructionStatus || "").replace(/"/g, '""')}"`,
-        `"${(p.remark || "").replace(/"/g, '""')}"`
-      ]);
+      if (!res.ok) throw new Error("Failed to generate Excel file");
 
-      // Using BOM (\uFEFF) for proper UTF-8 Excel compatibility
-      const csvContent = "\uFEFF" + [headers.join(","), ...rows.map(row => row.join(","))].join("\n");
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.setAttribute("href", url);
-      link.setAttribute("download", `Tulu_Dimtu_Inventory_Ledger_${new Date().toISOString().split("T")[0]}.csv`);
+      link.setAttribute("download", `Tulu_Dimtu_Inventory_Ledger_${new Date().toISOString().split("T")[0]}.xlsx`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -350,7 +340,7 @@ export default function ReportsPage() {
       toast.success("Detailed ledger exported exactly like Excel spreadsheet!");
     } catch (error) {
       console.error(error);
-      toast.error("Failed to export ledger.");
+      toast.error("Failed to export ledger to Excel.");
     }
   };
 
@@ -390,10 +380,10 @@ export default function ReportsPage() {
               <Printer size={18} /> Print Report
             </button>
             <button 
-              onClick={handleExportCSV}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold shadow-sm transition-all duration-300 flex items-center gap-2"
-            >
-              <Download size={18} /> Export Dataset
+               onClick={handleExportExcel}
+               className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold shadow-sm transition-all duration-300 flex items-center gap-2"
+             >
+               <Download size={18} /> Export Excel
             </button>
           </div>
         </div>

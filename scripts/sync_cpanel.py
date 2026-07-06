@@ -25,18 +25,19 @@ DATA_START = 12
 def convert_ppk_to_pem():
     """Use puttygen.exe to convert PPK → OpenSSH PEM."""
     puttygen = r"C:\Program Files\PuTTY\puttygen.exe"
+    # Try with -P flag first (older puttygen syntax, works on local system)
     result = subprocess.run(
         [puttygen, PPK_PATH,
-         f"--old-passphrase", PASSPHRASE,
+         "-P", PASSPHRASE,
          "-O", "private-openssh",
          "-o", PEM_PATH],
         capture_output=True, text=True, timeout=15
     )
     if not os.path.exists(PEM_PATH):
-        # Try without --old-passphrase flag (older puttygen syntax uses -P)
+        # Fallback to --old-passphrase flag (newer puttygen syntax)
         result = subprocess.run(
             [puttygen, PPK_PATH,
-             "-P", PASSPHRASE,
+             "--old-passphrase", PASSPHRASE,
              "-O", "private-openssh",
              "-o", PEM_PATH],
             capture_output=True, text=True, timeout=15
@@ -63,9 +64,24 @@ def load_excel():
     blocks = {}
     current_block = None
     for row in ws.iter_rows(min_row=DATA_START, max_row=ws.max_row, values_only=True):
-        if row[0] is not None and isinstance(row[0], (int, float)):
-            current_block = int(row[0])
-            blocks.setdefault(current_block, [])
+        if row[0] is not None:
+            val_str = str(row[0]).strip()
+            new_block = None
+            if val_str == "46A":
+                new_block = 461
+            elif val_str == "46B":
+                new_block = 462
+            elif val_str.isdigit():
+                new_block = int(val_str)
+            else:
+                try:
+                    new_block = int(float(val_str))
+                except ValueError:
+                    pass
+            
+            if new_block is not None:
+                current_block = new_block
+                blocks.setdefault(current_block, [])
         if current_block is None:
             continue
         plot_no = row[1]
@@ -93,11 +109,13 @@ def refresh_block(cur, block_id):
             sold_plots   = (SELECT COUNT(*) FROM plot_details
                             WHERE block_id = %s
                               AND purchaser_name IS NOT NULL
-                              AND LOWER(TRIM(purchaser_name)) NOT IN ('tulu dimtu real estate','tulu dimtu','')),
+                              AND TRIM(purchaser_name) <> ''
+                              AND UPPER(TRIM(purchaser_name)) NOT IN ('TULU DIMTU REAL ESTATE', 'TULU DIMTU REAL ESTATE (B*)')),
             active_plots = (SELECT COUNT(*) FROM plot_details
                             WHERE block_id = %s
                               AND (purchaser_name IS NULL
-                                   OR LOWER(TRIM(purchaser_name)) IN ('tulu dimtu real estate','tulu dimtu',''))),
+                                   OR TRIM(purchaser_name) = ''
+                                   OR UPPER(TRIM(purchaser_name)) IN ('TULU DIMTU REAL ESTATE', 'TULU DIMTU REAL ESTATE (B*)'))),
             area         = COALESCE((
                              SELECT SUM(
                                CASE WHEN plot_size ~ '^[0-9]+\\+[0-9]+$'

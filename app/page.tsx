@@ -22,7 +22,7 @@ const STATUS_BG: Record<PropertyStatus, string> = {
 };
 
 interface Point { x: number; y: number; }
-interface BlockHotspot { shape_id?: string; id: number; points: Point[]; }
+interface BlockHotspot { shape_id?: string; id: number; points: Point[]; label?: string | null; }
 
 type ViewMode = "status" | "heatmap" | "zone";
 const ZONE_COLORS: Record<string, string> = { "Zone I G+1": "#0086D1", "Zone II G+0": "#22c55e" };
@@ -380,6 +380,26 @@ export default function HomePage() {
 
   function handleSearch(q: string) {
     setSearchQuery(q);
+    const cleanQ = q.trim().toUpperCase();
+    if (!cleanQ) {
+      setSearchHighlight(null);
+      setHoveredBlock(null);
+      return;
+    }
+
+    // Try matching blockLabel (e.g. 46A, 46B)
+    const foundProp = properties.find(
+      p => p.blockLabel?.toUpperCase() === cleanQ || 
+           `B${p.blockLabel}`.toUpperCase() === cleanQ
+    );
+    if (foundProp) {
+      setSearchHighlight(foundProp.blockNumber);
+      setHoveredBlock(foundProp.blockNumber);
+      if (!editMode && !selectionMode) setDrawerBlock(foundProp.blockNumber);
+      return;
+    }
+
+    // Fallback to numeric search
     const num = parseInt(q.replace(/\D/g, ""), 10);
     if (!isNaN(num) && num >= 1) {
       setSearchHighlight(num); setHoveredBlock(num);
@@ -546,7 +566,7 @@ export default function HomePage() {
                 return (
                   <div className="flex items-center justify-between">
                     <div>
-                      <span className="font-bold text-slate-900">Block {p.blockNumber} — {p.noOfPlots} Plots</span>
+                      <span className="font-bold text-slate-900">Block {p.blockLabel ?? p.blockNumber} — {p.noOfPlots} Plots</span>
                       <span className="ml-2 text-xs font-semibold px-2 py-0.5 rounded-full" style={{ color: STATUS_COLORS[p.status], background: STATUS_COLORS[p.status] + "20" }}>
                         {STATUS_LABELS[p.status]}
                       </span>
@@ -860,19 +880,23 @@ export default function HomePage() {
                         const p = getLocalProp(hs.id);
                         const isDetailed = showLabels || isHovered || isSearched || selectedBlocks.has(hs.id);
                         
+                        const labelText = p?.blockLabel ?? hs.label ?? hs.id.toString();
+                        const idStr = `B${labelText}`;
+                        const charLength = idStr.length;
+                        
                         // Calculate proportional width & height depending on text length and detail state
                         let width = 2.4;
                         if (isDetailed) {
-                          if (hs.id >= 100) width = 4.5;
-                          else if (hs.id >= 10) width = 3.9;
-                          else width = 3.4;
+                          if (charLength >= 4) width = 4.8;
+                          else if (charLength === 3) width = 4.2;
+                          else width = 3.6;
                         } else {
-                          if (hs.id >= 100) width = 3.7;
-                          else if (hs.id >= 10) width = 3.1;
-                          else width = 2.5;
+                          if (charLength >= 4) width = 4.4;
+                          else if (charLength === 3) width = 3.8;
+                          else width = 3.2;
                         }
                         
-                        const height = isDetailed ? 3.8 : 2.5;
+                        const height = isDetailed ? 5.2 : 3.5;
                         
                         const x = centroid.x - width / 2;
                         const y = centroid.y - height / 2;
@@ -902,25 +926,25 @@ export default function HomePage() {
                             {/* Block ID text */}
                             <text
                               x={centroid.x}
-                              y={isDetailed ? centroid.y - 0.6 : centroid.y + 0.05}
+                              y={isDetailed ? centroid.y - 0.95 : centroid.y + 0.05}
                               textAnchor="middle"
                               dominantBaseline="middle"
                               fill="#ffffff"
-                              fontSize={1.0}
+                              fontSize={1.1}
                               fontWeight="900"
                               letterSpacing="-0.02em"
                             >
-                              B{hs.id}
+                              {idStr}
                             </text>
                             
                             {/* Sold/Active Details if detailed */}
                             {isDetailed && p && (
                               <text
                                 x={centroid.x}
-                                y={centroid.y + 0.75}
+                                y={centroid.y + 1.15}
                                 textAnchor="middle"
                                 dominantBaseline="middle"
-                                fontSize={0.65}
+                                fontSize={0.75}
                                 fontWeight="bold"
                                 fill={p.activePlots > 0 ? "#4ade80" : "#f87171"}
                               >
@@ -931,12 +955,12 @@ export default function HomePage() {
                             {/* Tiny status dot indicator on the top-right corner of the badge */}
                             {p && (
                               <circle
-                                cx={centroid.x + width / 2 - 0.35}
-                                cy={centroid.y - height / 2 + 0.35}
-                                r={0.3}
+                                cx={centroid.x + width / 2 - 0.45}
+                                cy={centroid.y - height / 2 + 0.45}
+                                r={0.35}
                                 fill={p.activePlots > 0 ? "#10b981" : "#ef4444"}
                                 stroke="#ffffff"
-                                strokeWidth={0.06}
+                                strokeWidth={0.08}
                                 style={{
                                   filter: "drop-shadow(0 0.5px 1px rgba(0,0,0,0.5))"
                                 }}
@@ -1302,7 +1326,7 @@ export default function HomePage() {
                     <div key={blockId} className="border border-slate-200 rounded-xl p-4 relative" style={{ borderTop: `3px solid ${STATUS_COLORS[p.status]}` }}>
                       <button onClick={() => toggleCompare(blockId)} className="absolute top-3 right-3 w-6 h-6 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-red-50 hover:text-red-500"><X size={12} /></button>
                       <div className="text-xs font-bold px-2 py-0.5 rounded-full text-white mb-2 inline-block" style={{ background: STATUS_COLORS[p.status] }}>{STATUS_LABELS[p.status]}</div>
-                      <h3 className="font-extrabold text-slate-900 text-base mb-0.5">Block {p.blockNumber}</h3>
+                      <h3 className="font-extrabold text-slate-900 text-base mb-0.5">Block {p.blockLabel ?? p.blockNumber}</h3>
                       <p className="text-xs text-slate-500 capitalize mb-3">Zone {p.zone}</p>
                       <div className="text-2xl font-extrabold text-[#0086D1] mb-3">${p.price.toLocaleString()}</div>
                       <div className="grid grid-cols-3 gap-2 text-center text-xs">

@@ -18,11 +18,11 @@ export async function GET() {
         COUNT(pd.id)          AS total_plots,
         COUNT(CASE WHEN pd.purchaser_name IS NOT NULL
                         AND TRIM(pd.purchaser_name) != ''
-                        AND UPPER(TRIM(pd.purchaser_name)) != 'TULU DIMTU REAL ESTATE'
+                        AND UPPER(TRIM(pd.purchaser_name)) NOT IN ('TULU DIMTU REAL ESTATE', 'TULU DIMTU REAL ESTATE (B*)')
                    THEN 1 END) AS sold_plots,
         COUNT(CASE WHEN pd.purchaser_name IS NULL
                      OR TRIM(pd.purchaser_name) = ''
-                     OR UPPER(TRIM(pd.purchaser_name)) = 'TULU DIMTU REAL ESTATE'
+                     OR UPPER(TRIM(pd.purchaser_name)) IN ('TULU DIMTU REAL ESTATE', 'TULU DIMTU REAL ESTATE (B*)')
                    THEN 1 END) AS active_plots,
         COALESCE(SUM(
           CASE WHEN SPLIT_PART(pd.plot_size, '+', 1) ~ '^[0-9]+(\.[0-9]+)?$'
@@ -67,10 +67,10 @@ export async function GET() {
         COUNT(pd.id) AS total_plots,
         COUNT(CASE WHEN pd.purchaser_name IS NOT NULL
                         AND TRIM(pd.purchaser_name) != ''
-                        AND UPPER(TRIM(pd.purchaser_name)) != 'TULU DIMTU REAL ESTATE' THEN 1 END) AS sold_plots,
+                        AND UPPER(TRIM(pd.purchaser_name)) NOT IN ('TULU DIMTU REAL ESTATE', 'TULU DIMTU REAL ESTATE (B*)') THEN 1 END) AS sold_plots,
         COUNT(CASE WHEN pd.purchaser_name IS NULL
                      OR TRIM(pd.purchaser_name) = ''
-                     OR UPPER(TRIM(pd.purchaser_name)) = 'TULU DIMTU REAL ESTATE' THEN 1 END) AS available_plots,
+                     OR UPPER(TRIM(pd.purchaser_name)) IN ('TULU DIMTU REAL ESTATE', 'TULU DIMTU REAL ESTATE (B*)') THEN 1 END) AS available_plots,
         COUNT(CASE WHEN UPPER(TRIM(pd.title_deeds_status)) = 'ISSUED' THEN 1 END) AS deeds_issued,
         COUNT(CASE WHEN UPPER(TRIM(pd.title_deeds_status)) = 'NOT ISSUED' THEN 1 END) AS deeds_not_issued,
         COUNT(CASE WHEN UPPER(TRIM(pd.title_deeds_status)) = 'PENDING' THEN 1 END) AS deeds_pending
@@ -90,7 +90,7 @@ export async function GET() {
         COUNT(pd.id) AS total_plots,
         COUNT(CASE WHEN pd.purchaser_name IS NOT NULL
                         AND TRIM(pd.purchaser_name) != ''
-                        AND UPPER(TRIM(pd.purchaser_name)) != 'TULU DIMTU REAL ESTATE' THEN 1 END) AS sold_plots,
+                        AND UPPER(TRIM(pd.purchaser_name)) NOT IN ('TULU DIMTU REAL ESTATE', 'TULU DIMTU REAL ESTATE (B*)') THEN 1 END) AS sold_plots,
         SUM(CASE WHEN SPLIT_PART(pd.plot_size, '+', 1) ~ '^[0-9]+(\.[0-9]+)?$' THEN SPLIT_PART(pd.plot_size, '+', 1)::numeric ELSE 0 END) AS total_area,
         COUNT(CASE WHEN UPPER(TRIM(pd.title_deeds_status)) = 'ISSUED' THEN 1 END) AS deeds_issued
       FROM properties p

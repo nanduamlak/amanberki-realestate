@@ -309,10 +309,10 @@ async function refreshBlockCounts(blockId: string) {
     `UPDATE properties SET
        no_of_plots  = (SELECT COUNT(*) FROM plot_details WHERE block_id=$1),
        sold_plots   = (SELECT COUNT(*) FROM plot_details WHERE block_id=$1
-                       AND purchaser_name NOT ILIKE '%tulu dimtu%'
-                       AND purchaser_name <> ''),
+                       AND purchaser_name <> ''
+                       AND UPPER(TRIM(purchaser_name)) NOT IN ('TULU DIMTU REAL ESTATE', 'TULU DIMTU REAL ESTATE (B*)')),
        active_plots = (SELECT COUNT(*) FROM plot_details WHERE block_id=$1
-                       AND (purchaser_name ILIKE '%tulu dimtu%' OR purchaser_name = '')),
+                       AND (purchaser_name = '' OR UPPER(TRIM(purchaser_name)) IN ('TULU DIMTU REAL ESTATE', 'TULU DIMTU REAL ESTATE (B*)'))),
        area         = (
                        SELECT COALESCE(SUM(
                          CASE

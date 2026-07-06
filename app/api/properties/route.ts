@@ -31,7 +31,40 @@ export function toProperty(row: Record<string, unknown>) {
 export async function GET() {
   try {
     const result = await query(
-      `SELECT * FROM properties ORDER BY block_number`
+      `SELECT
+         p.id,
+         p.block_number,
+         p.block_label,
+         p.zone,
+         p.status,
+         p.price,
+         p.price_max,
+         p.primary_plots,
+         COUNT(pd.id) AS no_of_plots,
+         COALESCE(SUM(
+           CASE WHEN SPLIT_PART(pd.plot_size, '+', 1) ~ '^[0-9]+(\.[0-9]+)?$'
+                THEN SPLIT_PART(pd.plot_size, '+', 1)::numeric
+                ELSE 0 END
+         ), 0) AS area,
+         p.plot_size,
+         p.buffer_plots,
+         p.no_of_buffer_plots,
+         COUNT(CASE WHEN pd.purchaser_name IS NOT NULL
+                         AND TRIM(pd.purchaser_name) != ''
+                         AND UPPER(TRIM(pd.purchaser_name)) NOT IN ('TULU DIMTU REAL ESTATE', 'TULU DIMTU REAL ESTATE (B*)')
+                    THEN 1 END) AS sold_plots,
+         COUNT(CASE WHEN pd.purchaser_name IS NULL
+                      OR TRIM(pd.purchaser_name) = ''
+                      OR UPPER(TRIM(pd.purchaser_name)) IN ('TULU DIMTU REAL ESTATE', 'TULU DIMTU REAL ESTATE (B*)')
+                    THEN 1 END) AS active_plots,
+         p.remark,
+         p.description,
+         p.created_at,
+         p.updated_at
+       FROM properties p
+       LEFT JOIN plot_details pd ON pd.block_id = p.id
+       GROUP BY p.id
+       ORDER BY p.block_number`
     );
     return NextResponse.json(result.rows.map(toProperty));
   } catch (err) {

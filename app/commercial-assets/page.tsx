@@ -30,7 +30,7 @@ export default function CommercialAssetsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {COMMERCIAL_ASSETS.map((asset) => {
             // Compute stats depending on asset details
-            const roomCount = asset.rooms?.length ?? 0;
+            const roomCount = asset.rooms?.length ?? asset.wajidRooms?.length ?? asset.piasaRooms?.length ?? 0;
             const historyCount = asset.tenantHistory?.length ?? 0;
             const docCount = asset.attachments?.length ?? 0;
 

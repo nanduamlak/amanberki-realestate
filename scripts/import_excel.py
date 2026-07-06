@@ -15,7 +15,7 @@ EXCEL      = "Tulu Dimtu Inventory last final.xlsx"
 SHEET      = "Sheet2"
 DATA_START = 12   # first data row (row 11 = headers)
 
-COMPANY_NAMES = {"tulu dimtu real estate", "tulu dimtu", ""}
+COMPANY_NAMES = {"tulu dimtu real estate", "tulu dimtu", "tulu dimtu real estate (b*)", ""}
 
 def normalise_deed(v):
     if not v: return ""
@@ -33,9 +33,24 @@ def load_excel():
     current_block = None
     for row in ws.iter_rows(min_row=DATA_START, max_row=ws.max_row, values_only=True):
         # Column A = block number (only on the first row of each block)
-        if row[0] is not None and isinstance(row[0], (int, float)):
-            current_block = int(row[0])
-            blocks.setdefault(current_block, [])
+        if row[0] is not None:
+            val_str = str(row[0]).strip()
+            new_block = None
+            if val_str == "46A":
+                new_block = 461
+            elif val_str == "46B":
+                new_block = 462
+            elif val_str.isdigit():
+                new_block = int(val_str)
+            else:
+                try:
+                    new_block = int(float(val_str))
+                except ValueError:
+                    pass
+            
+            if new_block is not None:
+                current_block = new_block
+                blocks.setdefault(current_block, [])
         if current_block is None:
             continue
         plot_no = row[1]
@@ -78,11 +93,13 @@ def refresh_block(cur, block_id: str):
             sold_plots   = (SELECT COUNT(*) FROM plot_details
                             WHERE block_id = %s
                               AND purchaser_name IS NOT NULL
-                              AND LOWER(TRIM(purchaser_name)) NOT IN ('tulu dimtu real estate','tulu dimtu','')),
+                              AND TRIM(purchaser_name) <> ''
+                              AND UPPER(TRIM(purchaser_name)) NOT IN ('TULU DIMTU REAL ESTATE', 'TULU DIMTU REAL ESTATE (B*)')),
             active_plots = (SELECT COUNT(*) FROM plot_details
                             WHERE block_id = %s
                               AND (purchaser_name IS NULL
-                                   OR LOWER(TRIM(purchaser_name)) IN ('tulu dimtu real estate','tulu dimtu',''))),
+                                   OR TRIM(purchaser_name) = ''
+                                   OR UPPER(TRIM(purchaser_name)) IN ('TULU DIMTU REAL ESTATE', 'TULU DIMTU REAL ESTATE (B*)'))),
             area         = COALESCE((
                              SELECT SUM(
                                CASE WHEN plot_size ~ '^[0-9]+\\+[0-9]+$'

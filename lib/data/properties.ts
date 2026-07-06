@@ -119,6 +119,7 @@ export function generateProperty(blockNum: number): Property {
   return {
     id: `BLOCK-${blockNum.toString().padStart(3, "0")}`,
     blockNumber: blockNum,
+    blockLabel: blockNum === 461 ? "46A" : blockNum === 462 ? "46B" : null,
     zone,
     status,
     price,
@@ -1734,6 +1735,7 @@ export const properties: Property[] = Array.from(
       return {
         id: "BLOCK-046B",
         blockNumber: 462,
+        blockLabel: "46B",
         zone: "Zone II G+0",
         status: "reserved",
         price: 0,
