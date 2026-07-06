@@ -9,7 +9,7 @@ import { query } from "@/lib/db";
  */
 export async function GET() {
   try {
-    const auth = await requireRole(["super_admin", "admin", "user"]);
+    const auth = await requireRole(["super_admin", "admin"]);
     if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status ?? 401 });
 
     const result = await query(
@@ -46,7 +46,7 @@ export async function GET() {
  */
 export async function POST(req: NextRequest) {
   try {
-    const auth = await requireRole(["super_admin", "admin", "user"]);
+    const auth = await requireRole(["super_admin", "admin"]);
     if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status ?? 401 });
 
     const { body } = await req.json();

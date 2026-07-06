@@ -337,7 +337,7 @@ export default function ReportsPage() {
       link.click();
       document.body.removeChild(link);
 
-      toast.success("Detailed ledger exported exactly like Excel spreadsheet!");
+      toast.success("Successfully exported!");
     } catch (error) {
       console.error(error);
       toast.error("Failed to export ledger to Excel.");
@@ -373,12 +373,12 @@ export default function ReportsPage() {
             </p>
           </div>
           <div className="flex flex-wrap gap-3 print:hidden shrink-0">
-            <button 
+            {/* <button 
               onClick={handlePrint}
               className="bg-white border border-slate-200 hover:border-slate-300 text-slate-700 hover:text-slate-900 px-5 py-2.5 rounded-xl font-bold shadow-sm transition-all duration-300 flex items-center gap-2"
             >
               <Printer size={18} /> Print Report
-            </button>
+            </button> */}
             <button 
                onClick={handleExportExcel}
                className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold shadow-sm transition-all duration-300 flex items-center gap-2"

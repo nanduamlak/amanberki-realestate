@@ -12,7 +12,8 @@ export async function POST(req: NextRequest) {
     const body = await req.json(); // body is Array of filtered plots
     
     // Spawn python process passing temp file path as argument
-    const python = spawn("python", ["-u", "scripts/export_excel.py", tempFilePath]);
+    const pythonCmd = process.platform === "win32" ? "python" : "python3";
+    const python = spawn(pythonCmd, ["-u", "scripts/export_excel.py", tempFilePath]);
     
     // Write JSON to python stdin
     python.stdin.write(JSON.stringify(body));

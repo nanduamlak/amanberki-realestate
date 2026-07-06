@@ -10,7 +10,7 @@ type Params = { params: Promise<{ id: string }> };
  */
 export async function PUT(req: NextRequest, { params }: Params) {
   try {
-    const auth = await requireRole(["super_admin", "admin", "user"]);
+    const auth = await requireRole(["super_admin", "admin"]);
     if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status ?? 401 });
 
     const { id } = await params;
@@ -56,7 +56,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
  */
 export async function DELETE(req: NextRequest, { params }: Params) {
   try {
-    const auth = await requireRole(["super_admin", "admin", "user"]);
+    const auth = await requireRole(["super_admin", "admin"]);
     if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status ?? 401 });
 
     const { id } = await params;

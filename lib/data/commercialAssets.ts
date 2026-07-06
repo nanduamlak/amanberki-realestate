@@ -395,9 +395,9 @@ export const COMMERCIAL_ASSETS: CommercialAsset[] = [
     id: "merkato-wajid-tower",
     name: "Merkato Wajid Tower",
     location: "Merkato, Addis Ababa",
-    description: "A premium multi-level commercial tower situated in the high-density trading center of Merkato. Optimized for retail stalls, wholesalers, and general business tenants with dedicated storage options.",
+    description: "A premium multi-level RETIAL SHOPS situated in the high-density trading center of Merkato. Optimized for retail stalls, wholesalers, and general business tenants with dedicated storage options.",
     image: "/merkato_wajid_tower.jpg",
-    category: "Commercial Tower",
+    category: "RETIAL SHOPS",
     attachments: [
       { name: "Wajid Tower Directory File", url: "/merkato_wajid_tower_directory-v4.pdf", type: "pdf" }
     ],

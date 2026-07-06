@@ -11,6 +11,7 @@ export interface RolePermissions {
   canAccessDashboard: boolean;
   canAccessProperties: boolean;
   canAccessReports: boolean;
+  canAccessAttention: boolean;
   canAccessUserManagement: boolean;
   canAccessSystemLogs: boolean;       // super_admin only
   canAccessPerformance: boolean;      // super_admin only
@@ -32,6 +33,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, RolePermissions> = {
     canAccessDashboard: true,
     canAccessProperties: true,
     canAccessReports: true,
+    canAccessAttention: true,
     canAccessUserManagement: true,
     canAccessSystemLogs: true,
     canAccessPerformance: true,
@@ -46,6 +48,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, RolePermissions> = {
     canAccessDashboard: true,
     canAccessProperties: true,
     canAccessReports: true,
+    canAccessAttention: true,
     canAccessUserManagement: true,
     canAccessSystemLogs: false,       // ← excluded for admin
     canAccessPerformance: false,      // ← excluded for admin
@@ -60,6 +63,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, RolePermissions> = {
     canAccessDashboard: true,
     canAccessProperties: true,
     canAccessReports: false,
+    canAccessAttention: false,
     canAccessUserManagement: false,
     canAccessSystemLogs: false,
     canAccessPerformance: false,
@@ -83,16 +87,18 @@ export function getPermissions(role: string | undefined): RolePermissions {
 
 /** Route → minimum required role mapping for middleware enforcement */
 export const PROTECTED_ROUTES: Record<string, AppRole[]> = {
-  "/user-management": ["super_admin", "admin"],
-  "/reports":         ["super_admin", "admin"],
-  "/system-logs":     ["super_admin"],
-  "/performance":     ["super_admin"],
+  "/user-management":    ["super_admin", "admin"],
+  "/reports":            ["super_admin", "admin"],
+  "/attention-remarks":  ["super_admin", "admin"],
+  "/system-logs":        ["super_admin"],
+  "/performance":        ["super_admin"],
 };
 
 /** API route protection map: method-level */
 export const PROTECTED_API: Record<string, { methods: string[]; roles: AppRole[] }> = {
-  "/api/hotspots": { methods: ["POST", "DELETE"], roles: ["super_admin"] },
-  "/api/users":    { methods: ["POST", "PUT", "DELETE"], roles: ["super_admin", "admin"] },
+  "/api/hotspots":          { methods: ["POST", "DELETE"], roles: ["super_admin"] },
+  "/api/users":             { methods: ["POST", "PUT", "DELETE"], roles: ["super_admin", "admin"] },
+  "/api/attention-remarks": { methods: ["GET", "POST", "PUT", "DELETE"], roles: ["super_admin", "admin"] },
 };
 
 export const ROLE_LABELS: Record<AppRole, string> = {

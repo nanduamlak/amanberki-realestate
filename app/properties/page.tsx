@@ -380,11 +380,11 @@ export default function PropertiesPage() {
           </div>
           {canManage && (
             <div className="flex items-center gap-2 shrink-0">
-              <button
+              {/* <button
                 onClick={() => setResetTarget(true)}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-white transition-all">
                 <RotateCcw size={14} /> Reset
-              </button>
+              </button> */}
               <button onClick={openAdd}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0086D1] text-white font-bold text-sm hover:bg-[#006eb0] transition-all shadow-md">
                 <Plus size={16} /> Add Property

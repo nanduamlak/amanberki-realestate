@@ -22,7 +22,7 @@ const NAV_ITEMS = [
   { href: "/properties",         label: "Properties", subLabel: "Directory",  icon: List,                 permission: null },
   { href: "/commercial-assets",  label: "Assets",     subLabel: "Commercial", icon: Building2,            permission: null },
   { href: "/reports",            label: "Reports",    subLabel: "Analytics",  icon: FileText,             permission: "canAccessReports" },
-  { href: "/attention-remarks",  label: "Attention",  subLabel: "Notices",    icon: MessageSquareWarning, permission: null, badge: true },
+  { href: "/attention-remarks",  label: "Attention",  subLabel: "Notices",    icon: MessageSquareWarning, permission: "canAccessAttention", badge: true },
   { href: "/user-management",    label: "Users",      subLabel: "Management", icon: Users,                permission: "canAccessUserManagement" },
   { href: "/system-logs",        label: "System Logs",subLabel: "Technical",  icon: Activity,             permission: "canAccessSystemLogs" },
 ] as const;
@@ -47,6 +47,9 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
 
   // Poll unread count when not on the attention page (every 30s)
   useEffect(() => {
+    if (isLoading || !user) return;
+    const canAccessAttention = role === "super_admin" || role === "admin";
+    if (!canAccessAttention) return;
     if (path === "/attention-remarks") return; // page handles this itself
     async function fetchCount() {
       try {
@@ -60,7 +63,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
     fetchCount();
     const interval = setInterval(fetchCount, 30_000);
     return () => clearInterval(interval);
-  }, [path]);
+  }, [path, role, user, isLoading]);
 
   // Hide role-gated links until we know the actual role to avoid flash
   const visibleLinks = isLoading
