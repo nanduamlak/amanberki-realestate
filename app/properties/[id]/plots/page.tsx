@@ -355,10 +355,30 @@ export default function PlotManagementPage({ params }: { params: Promise<{ id: s
                   </select>
                 </Field>
                 <Field label="Floors">
-                  <input className={INPUT} type="number" value={formTarget.floors ?? ""} onChange={e => s("floors", e.target.value ? Number(e.target.value) : undefined)} placeholder="2" />
+                  <input 
+                    className={INPUT} 
+                    type="number" 
+                    min="0"
+                    value={formTarget.floors ?? ""} 
+                    onChange={e => {
+                      const val = e.target.value ? Number(e.target.value) : undefined;
+                      s("floors", val !== undefined ? Math.max(0, val) : undefined);
+                    }} 
+                    placeholder="2" 
+                  />
                 </Field>
                 <Field label="Year Built">
-                  <input className={INPUT} type="number" value={formTarget.yearBuilt ?? ""} onChange={e => s("yearBuilt", e.target.value ? Number(e.target.value) : undefined)} placeholder="2024" />
+                  <input 
+                    className={INPUT} 
+                    type="number" 
+                    min="0"
+                    value={formTarget.yearBuilt ?? ""} 
+                    onChange={e => {
+                      const val = e.target.value ? Number(e.target.value) : undefined;
+                      s("yearBuilt", val !== undefined ? Math.max(0, val) : undefined);
+                    }} 
+                    placeholder="2024" 
+                  />
                 </Field>
               </div>
 

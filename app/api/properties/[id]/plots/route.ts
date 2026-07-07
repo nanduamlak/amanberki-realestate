@@ -19,6 +19,9 @@ function validatePlot(p: Record<string, unknown>): string | null {
   if (p.floors    !== undefined && p.floors    !== null && (!Number.isInteger(Number(p.floors))    || Number(p.floors)    < 0)) return "floors must be a non-negative integer";
   if (p.bedrooms  !== undefined && p.bedrooms  !== null && (!Number.isInteger(Number(p.bedrooms))  || Number(p.bedrooms)  < 0)) return "bedrooms must be a non-negative integer";
   if (p.bathrooms !== undefined && p.bathrooms !== null && (!Number.isInteger(Number(p.bathrooms)) || Number(p.bathrooms) < 0)) return "bathrooms must be a non-negative integer";
+  if (p.yearBuilt !== undefined && p.yearBuilt !== null && p.yearBuilt !== "" && (!Number.isInteger(Number(p.yearBuilt)) || Number(p.yearBuilt) < 0)) {
+    return "yearBuilt must be a non-negative integer";
+  }
   return null;
 }
 

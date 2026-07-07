@@ -104,7 +104,7 @@ export const BLANK_PLOT: PlotDetail = {
   amenities: ["Road Access", "Water Supply", "Electricity Grid", "Compound Wall", "Security Gate", "Green Belt"],
 };
 
-export const HOUSE_TYPES = ["Villa", "Townhouse", "Duplex", "Apartment", "Studio", "Commercial"] as const;
+export const HOUSE_TYPES = ["Villa", "Townhouse", "Duplex", "Apartment", "Studio", "Commercial", "G+1", "G+2"] as const;
 export const DEED_STATUSES = ["issued", "pending", "not-issued"] as const;
 export const CONSTRUCTION_STATUSES = [
   "", "Bare Land", "Foundation", "Blockwork", "Roofing",
