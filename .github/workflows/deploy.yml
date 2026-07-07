@@ -76,4 +76,4 @@ jobs:
             -o UserKnownHostsFile=/dev/null \
             -p "${{ secrets.CPANEL_SSH_PORT }}" \
             "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}" \
-            "cd '$APP' && cat > deploy.tar.gz && tar -xzf deploy.tar.gz && rm -f deploy.tar.gz && npm install --omit=dev && mkdir -p tmp && touch tmp/restart.txt && echo 'Deploy complete!'"
+            "export PATH=$HOME/bin:$PATH && cd '$APP' && cat > deploy.tar.gz && tar -xzf deploy.tar.gz && rm -f deploy.tar.gz && npm install --omit=dev && mkdir -p tmp && touch tmp/restart.txt && echo 'Deploy complete!'"
