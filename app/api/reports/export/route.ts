@@ -13,7 +13,14 @@ export async function POST(req: NextRequest) {
     
     // Spawn python process passing temp file path as argument
     const pythonCmd = process.platform === "win32" ? "python" : "python3";
-    const python = spawn(pythonCmd, ["-u", "scripts/export_excel.py", tempFilePath]);
+    
+    // Inject PYTHONPATH for local user-installed packages on cPanel
+    const env: NodeJS.ProcessEnv = { ...process.env };
+    if (process.platform !== "win32") {
+      env.PYTHONPATH = "/home/amanbeqj/.local/lib/python3.9/site-packages:" + (env.PYTHONPATH || "");
+    }
+    
+    const python = spawn(pythonCmd, ["-u", "scripts/export_excel.py", tempFilePath], { env });
     
     // Write JSON to python stdin
     python.stdin.write(JSON.stringify(body));
