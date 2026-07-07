@@ -56,18 +56,6 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
 
-      - name: Add server to known hosts
-        run: |
-          mkdir -p ~/.ssh
-          cat >> ~/.ssh/config << 'EOF'
-          Host *
-            ServerAliveInterval 10
-            ServerAliveCountMax 30
-            ConnectTimeout 60
-            TCPKeepAlive yes
-          EOF
-          ssh-keyscan -p "${{ secrets.CPANEL_SSH_PORT }}" -H "${{ secrets.CPANEL_SSH_HOST }}" >> ~/.ssh/known_hosts
-
       - name: Create tarball
         run: tar -czf deploy.tar.gz -C deploy-package .
 
@@ -85,6 +73,7 @@ jobs:
             -o ServerAliveCountMax=30 \
             -o TCPKeepAlive=yes \
             -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
             -p "${{ secrets.CPANEL_SSH_PORT }}" \
             "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}" \
             "cd '$APP' && cat > deploy.tar.gz && tar -xzf deploy.tar.gz && rm -f deploy.tar.gz && mkdir -p tmp && touch tmp/restart.txt && echo 'Deploy complete!'"
