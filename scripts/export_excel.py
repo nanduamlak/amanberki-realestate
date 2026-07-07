@@ -1,4 +1,9 @@
 import sys
+import os
+
+# Add cPanel local user site-packages to path so openpyxl is always found on production
+sys.path.insert(0, "/home/amanbeqj/.local/lib/python3.9/site-packages")
+
 import json
 import openpyxl
 from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
